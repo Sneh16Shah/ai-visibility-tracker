@@ -1,0 +1,15 @@
+# Environment files
+.env
+.env.local
+
+# Binaries
+*.exe
+server
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
