@@ -3,11 +3,12 @@ import * as api from '../api/client'
 
 // Default prompt templates (used when API is unavailable)
 const defaultPromptTemplates = [
-    { id: 1, category: 'Best Tools', template: 'What are the best {category} tools in 2024?', selected: true },
+    { id: 1, category: 'Best Tools', template: 'What are the best {category} tools available today?', selected: true },
     { id: 2, category: 'Alternatives', template: 'What are the best alternatives to {competitor}?', selected: true },
-    { id: 3, category: 'Comparison', template: 'Compare {brand} vs {competitor} for {use_case}', selected: false },
-    { id: 4, category: 'Beginner', template: 'What {category} tool should a beginner use?', selected: false },
-    { id: 5, category: 'Reviews', template: 'What do people say about {brand}?', selected: true },
+    { id: 3, category: 'Recommendations', template: 'Which {category} solution would you recommend for a business?', selected: true },
+    { id: 4, category: 'Comparison', template: 'Compare {brand} vs {competitor} - which is better?', selected: false },
+    { id: 5, category: 'Reviews', template: 'What do users say about {brand}? Is it worth using?', selected: true },
+    { id: 6, category: 'Features', template: 'What are the key features of {brand}?', selected: false },
 ]
 
 export default function RunAnalysis() {

@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: aiviz-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-password}
+      MYSQL_DATABASE: ai_visibility_tracker
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aiviz-network
+
+  # Go Backend
+  backend:
+    build: ./backend
+    container_name: aiviz-backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ai_visibility_tracker
+      PORT: 8080
+      ENVIRONMENT: production
+      # API keys loaded from .env file (never commit these!)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - aiviz-network
+
+  # React Frontend
+  frontend:
+    build: ./frontend
+    container_name: aiviz-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - aiviz-network
+
+networks:
+  aiviz-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

@@ -96,11 +96,12 @@ CREATE TABLE IF NOT EXISTS metric_snapshots (
 
 -- Insert default prompt templates
 INSERT INTO prompts (category, template, description) VALUES
-('Best Tools', 'What are the best {category} tools in 2024?', 'Find top tools in a category'),
+('Best Tools', 'What are the best {category} tools available today?', 'Find top tools in a category'),
 ('Alternatives', 'What are the best alternatives to {competitor}?', 'Find alternatives to a competitor'),
-('Comparison', 'Compare {brand} vs {competitor} for {use_case}', 'Direct comparison between brands'),
-('Beginner', 'What {category} tool should a beginner use?', 'Recommendations for beginners'),
-('Reviews', 'What do people say about {brand}?', 'General sentiment and reviews');
+('Recommendations', 'Which {category} solution would you recommend for a business?', 'Business recommendations'),
+('Comparison', 'Compare {brand} vs {competitor} - which is better?', 'Direct comparison between brands'),
+('Reviews', 'What do users say about {brand}? Is it worth using?', 'User sentiment and reviews'),
+('Features', 'What are the key features of {brand}?', 'Highlight brand capabilities');
 
 -- Create indexes for better query performance
 CREATE INDEX idx_brands_user ON brands(user_id);
