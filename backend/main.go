@@ -13,9 +13,13 @@ import (
 )
 
 func main() {
-	// Load .env file if it exists
+	// Load .env file - try current dir first, then parent (for running from backend/)
 	if err := godotenv.Load(); err != nil {
-		log.Println("📝 No .env file found, using environment variables")
+		if err := godotenv.Load("../.env"); err != nil {
+			log.Println("📝 No .env file found, using environment variables")
+		} else {
+			log.Println("✅ Loaded .env from parent directory")
+		}
 	} else {
 		log.Println("✅ Loaded .env file")
 	}
