@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import * as api from '../api/client'
 
@@ -82,6 +83,7 @@ function KPICard({ title, value, subtitle, trend, icon, loading }) {
 }
 
 export default function Dashboard() {
+    const navigate = useNavigate()
     const [loading, setLoading] = useState(true)
     const [dashboardData, setDashboardData] = useState(null)
     const [trendData, setTrendData] = useState(demoTrendData)
@@ -90,6 +92,7 @@ export default function Dashboard() {
     const [error, setError] = useState(null)
     const [brands, setBrands] = useState([])
     const [selectedBrandId, setSelectedBrandId] = useState(null)
+    const [hasRealData, setHasRealData] = useState(false)
 
     // Fetch brands on mount
     useEffect(() => {
@@ -125,45 +128,35 @@ export default function Dashboard() {
 
                 setDashboardData(data)
 
-                // Update charts if real data is available
-                if (data.trends && data.trends.length > 0) {
-                    setTrendData(data.trends.map(t => ({
-                        date: new Date(t.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                        visibility: t.visibility_score,
-                        mentions: t.mention_count,
-                    })))
-                }
+                // Check if brand has real analysis data (total_mentions > 0)
+                const hasData = data.total_mentions && data.total_mentions > 0
+                setHasRealData(hasData)
 
-                if (data.citation_breakdown && data.citation_breakdown.length > 0) {
-                    setCitationShareData(data.citation_breakdown)
-                } else {
-                    // Use demo data with real brand names
-                    const demoData = generateDemoChartData(selectedBrand)
-                    setCitationShareData(demoData.citationData)
-                }
+                // Update charts only if real data is available
+                if (hasData) {
+                    if (data.trends && data.trends.length > 0) {
+                        setTrendData(data.trends.map(t => ({
+                            date: new Date(t.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                            visibility: t.visibility_score,
+                            mentions: t.mention_count,
+                        })))
+                    }
 
-                if (data.competitor_data && data.competitor_data.length > 0) {
-                    setCompetitorData(data.competitor_data)
-                } else {
-                    // Use demo data with real brand names
-                    const demoData = generateDemoChartData(selectedBrand)
-                    setCompetitorData(demoData.competitorData)
+                    if (data.citation_breakdown && data.citation_breakdown.length > 0) {
+                        setCitationShareData(data.citation_breakdown)
+                    }
+
+                    if (data.competitor_data && data.competitor_data.length > 0) {
+                        setCompetitorData(data.competitor_data)
+                    }
                 }
 
                 setError(null)
             } catch (err) {
-                console.log('Using demo data:', err)
-                setDashboardData({
-                    visibility_score: 88,
-                    citation_share: 35,
-                    total_mentions: 162,
-                    sentiment_score: 4.2,
-                })
-                // Use demo data with real brand names
-                const demoData = generateDemoChartData(selectedBrand)
-                setCitationShareData(demoData.citationData)
-                setCompetitorData(demoData.competitorData)
-                setError('demo')
+                console.log('Error fetching dashboard:', err)
+                setHasRealData(false)
+                setDashboardData(null)
+                setError('error')
             } finally {
                 setLoading(false)
             }
@@ -174,7 +167,26 @@ export default function Dashboard() {
         // Refresh every 30 seconds
         const interval = setInterval(fetchDashboardData, 30000)
         return () => clearInterval(interval)
-    }, [selectedBrandId, selectedBrand])
+    }, [selectedBrandId])
+
+    // Empty state when no analysis has been run
+    const EmptyState = () => (
+        <div className="bg-[var(--surface)] rounded-2xl p-12 border border-[var(--surface-light)] text-center">
+            <div className="text-6xl mb-4">📊</div>
+            <h3 className="text-xl font-semibold text-[var(--text)] mb-2">
+                No Analysis Data Yet
+            </h3>
+            <p className="text-[var(--text-muted)] mb-6 max-w-md mx-auto">
+                Run your first AI visibility analysis for <strong>{selectedBrand?.name || 'this brand'}</strong> to see how it appears in AI responses.
+            </p>
+            <button
+                onClick={() => navigate('/analysis')}
+                className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium rounded-xl hover:opacity-90 transition-all duration-300"
+            >
+                🚀 Run Analysis
+            </button>
+        </div>
+    )
 
     return (
         <div className="space-y-8">
@@ -201,122 +213,124 @@ export default function Dashboard() {
                             ))
                         )}
                     </select>
-                    {error && (
-                        <span className="text-amber-400 text-sm flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                            Demo Mode
-                        </span>
-                    )}
                 </div>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <KPICard
-                    title="Visibility Score"
-                    value={dashboardData?.visibility_score?.toFixed(0) || '88'}
-                    subtitle="out of 100"
-                    trend={12}
-                    icon="📊"
-                    loading={loading}
-                />
-                <KPICard
-                    title="Citation Share"
-                    value={`${dashboardData?.citation_share?.toFixed(0) || '35'}%`}
-                    subtitle="of AI responses"
-                    trend={8}
-                    icon="📈"
-                    loading={loading}
-                />
-                <KPICard
-                    title="Total Mentions"
-                    value={dashboardData?.total_mentions || '162'}
-                    subtitle="last 7 days"
-                    trend={24}
-                    icon="💬"
-                    loading={loading}
-                />
-                <KPICard
-                    title="Sentiment Score"
-                    value={dashboardData?.sentiment_score?.toFixed(1) || '4.2'}
-                    subtitle="out of 5"
-                    trend={-3}
-                    icon="😊"
-                    loading={loading}
-                />
-            </div>
-
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Visibility Trend */}
-                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
-                    <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Visibility Trend</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={trendData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                            <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-                            <YAxis stroke="#94a3b8" fontSize={12} />
-                            <Tooltip {...tooltipStyle} />
-                            <Line
-                                type="monotone"
-                                dataKey="visibility"
-                                stroke="#6366f1"
-                                strokeWidth={3}
-                                dot={{ fill: '#6366f1', strokeWidth: 2, r: 4 }}
-                                activeDot={{ r: 6, fill: '#818cf8' }}
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
+            {/* Show empty state or dashboard based on data */}
+            {loading ? (
+                <div className="flex justify-center items-center h-64">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
                 </div>
-
-                {/* Citation Share Pie */}
-                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
-                    <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Citation Share</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={citationShareData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={100}
-                                paddingAngle={5}
-                                dataKey="value"
-                            >
-                                {citationShareData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                            </Pie>
-                            <Tooltip {...tooltipStyle} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                    {/* Legend */}
-                    <div className="flex flex-wrap justify-center gap-4 mt-4">
-                        {citationShareData.map((item) => (
-                            <div key={item.name} className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                                <span className="text-sm text-[var(--text-muted)]">{item.name}</span>
-                            </div>
-                        ))}
+            ) : !hasRealData ? (
+                <EmptyState />
+            ) : (
+                <>
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <KPICard
+                            title="Visibility Score"
+                            value={dashboardData?.visibility_score?.toFixed(0) || '0'}
+                            subtitle="out of 100"
+                            icon="📊"
+                            loading={loading}
+                        />
+                        <KPICard
+                            title="Citation Share"
+                            value={`${dashboardData?.citation_share?.toFixed(0) || '0'}%`}
+                            subtitle="of AI responses"
+                            icon="📈"
+                            loading={loading}
+                        />
+                        <KPICard
+                            title="Total Mentions"
+                            value={dashboardData?.total_mentions || '0'}
+                            subtitle="last 7 days"
+                            icon="💬"
+                            loading={loading}
+                        />
+                        <KPICard
+                            title="Sentiment Score"
+                            value={dashboardData?.sentiment_score?.toFixed(1) || '0'}
+                            subtitle="out of 5"
+                            icon="😊"
+                            loading={loading}
+                        />
                     </div>
-                </div>
-            </div>
 
-            {/* Competitor Comparison */}
-            <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
-                <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Brand vs Competitors</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={competitorData} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <XAxis type="number" stroke="#94a3b8" fontSize={12} />
-                        <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={12} width={100} />
-                        <Tooltip {...tooltipStyle} />
-                        <Bar dataKey="positive" stackId="a" fill="#10b981" name="Positive" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="neutral" stackId="a" fill="#f59e0b" name="Neutral" />
-                        <Bar dataKey="negative" stackId="a" fill="#ef4444" name="Negative" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
+
+                    {/* Charts Row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Visibility Trend */}
+                        <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
+                            <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Visibility Trend</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <LineChart data={trendData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
+                                    <YAxis stroke="#94a3b8" fontSize={12} />
+                                    <Tooltip {...tooltipStyle} />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="visibility"
+                                        stroke="#6366f1"
+                                        strokeWidth={3}
+                                        dot={{ fill: '#6366f1', strokeWidth: 2, r: 4 }}
+                                        activeDot={{ r: 6, fill: '#818cf8' }}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        {/* Citation Share Pie */}
+                        <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
+                            <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Citation Share</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                    <Pie
+                                        data={citationShareData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={100}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {citationShareData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip {...tooltipStyle} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            {/* Legend */}
+                            <div className="flex flex-wrap justify-center gap-4 mt-4">
+                                {citationShareData.map((item) => (
+                                    <div key={item.name} className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                                        <span className="text-sm text-[var(--text-muted)]">{item.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Competitor Comparison */}
+                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
+                        <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Brand vs Competitors</h3>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={competitorData} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                <XAxis type="number" stroke="#94a3b8" fontSize={12} />
+                                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={12} width={100} />
+                                <Tooltip {...tooltipStyle} />
+                                <Bar dataKey="positive" stackId="a" fill="#10b981" name="Positive" radius={[0, 0, 0, 0]} />
+                                <Bar dataKey="neutral" stackId="a" fill="#f59e0b" name="Neutral" />
+                                <Bar dataKey="negative" stackId="a" fill="#ef4444" name="Negative" radius={[0, 4, 4, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </>
+            )}
         </div>
     )
 }

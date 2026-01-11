@@ -48,6 +48,33 @@ export default function RunAnalysis() {
         fetchBrands()
     }, [])
 
+    // Fetch previous analysis results when brand changes
+    useEffect(() => {
+        if (!selectedBrandId) return
+
+        const fetchPreviousResults = async () => {
+            try {
+                const data = await api.getAnalysisResults(selectedBrandId)
+                if (data.results && data.results.length > 0) {
+                    // Transform backend results to match our results format
+                    setResults(data.results.map(r => ({
+                        id: r.id,
+                        prompt: r.prompt_text,
+                        response: r.response_text,
+                        model: r.model_name,
+                        timestamp: r.created_at,
+                        status: 'complete'
+                    })))
+                }
+            } catch (err) {
+                // No previous results or API error - that's fine
+                console.log('No previous results:', err)
+            }
+        }
+
+        fetchPreviousResults()
+    }, [selectedBrandId])
+
     // Fetch analysis status on mount and periodically
     useEffect(() => {
         const fetchStatus = async () => {

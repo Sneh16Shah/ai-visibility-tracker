@@ -11,15 +11,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// JWT secret key - in production, use environment variable
-var jwtSecret = []byte(getJWTSecret())
-
-func getJWTSecret() string {
+// getJWTSecret returns the JWT secret key - reads from env at runtime
+func getJWTSecret() []byte {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		return "your-secret-key-change-in-production"
+		secret = "your-secret-key-change-in-production"
 	}
-	return secret
+	return []byte(secret)
 }
 
 // Claims for JWT token
@@ -162,7 +160,7 @@ func generateToken(userID int, email string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	return token.SignedString(getJWTSecret())
 }
 
 // AuthMiddleware validates JWT tokens
@@ -186,7 +184,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Parse and validate token
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return jwtSecret, nil
+			return getJWTSecret(), nil
 		})
 
 		if err != nil || !token.Valid {
@@ -216,7 +214,7 @@ func OptionalAuthMiddleware() gin.HandlerFunc {
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return jwtSecret, nil
+			return getJWTSecret(), nil
 		})
 
 		if err == nil && token.Valid {
