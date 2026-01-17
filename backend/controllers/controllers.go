@@ -495,25 +495,15 @@ func calculateSentimentScore(m *models.MetricSnapshot) float64 {
 	return score
 }
 
-// getDemoData returns demo data when no real data exists
+// getDemoData returns empty data when no real data exists
 func getDemoData() models.DashboardData {
 	return models.DashboardData{
-		VisibilityScore: 88,
-		CitationShare:   35,
-		TotalMentions:   162,
-		SentimentScore:  4.2,
-		Trends:          []models.MetricSnapshot{},
-		CitationBreakdown: []models.CitationBreakdown{
-			{Name: "Your Brand", Value: 35, Color: "#6366f1"},
-			{Name: "Competitor A", Value: 28, Color: "#10b981"},
-			{Name: "Competitor B", Value: 22, Color: "#f59e0b"},
-			{Name: "Competitor C", Value: 15, Color: "#ef4444"},
-		},
-		CompetitorData: []models.CompetitorMetrics{
-			{Name: "Your Brand", Mentions: 35, Positive: 28, Neutral: 5, Negative: 2},
-			{Name: "Competitor A", Mentions: 28, Positive: 20, Neutral: 6, Negative: 2},
-			{Name: "Competitor B", Mentions: 22, Positive: 15, Neutral: 5, Negative: 2},
-			{Name: "Competitor C", Mentions: 15, Positive: 10, Neutral: 3, Negative: 2},
-		},
+		VisibilityScore:   0,
+		CitationShare:     0,
+		TotalMentions:     0,
+		SentimentScore:    0,
+		Trends:            []models.MetricSnapshot{},
+		CitationBreakdown: []models.CitationBreakdown{},
+		CompetitorData:    []models.CompetitorMetrics{},
 	}
 }

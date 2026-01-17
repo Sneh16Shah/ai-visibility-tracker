@@ -87,6 +87,61 @@ OPENAI_API_KEY=your-key-here
 # API calls automatically proxy to localhost:8080
 ```
 
+### 🐳 Docker Setup (Recommended)
+
+Run the entire stack with a single command:
+
+**1. Create a `.env` file in the project root:**
+```bash
+GEMINI_API_KEY=your-gemini-api-key
+GROQ_API_KEY=your-groq-api-key
+DB_PASSWORD=your-secure-password
+JWT_SECRET=your-jwt-secret
+```
+
+**2. Start all services:**
+```bash
+docker-compose up -d
+```
+
+This starts:
+- **MySQL** on port `3306`
+- **Backend API** on port `8080`
+- **Frontend** on port `80`
+
+**3. Access the app:**
+- Frontend: http://localhost
+- Backend API: http://localhost:8080
+
+**4. View logs:**
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
+
+**5. Rebuild after code changes:**
+```bash
+# Rebuild and restart a specific service
+docker-compose up -d --build backend
+docker-compose up -d --build frontend
+
+# Rebuild all services
+docker-compose up -d --build
+```
+
+**6. Stop and cleanup:**
+```bash
+# Stop services (keeps data)
+docker-compose down
+
+# Stop and remove volumes (removes database data)
+docker-compose down -v
+```
+
 ## 📁 Project Structure
 
 ```

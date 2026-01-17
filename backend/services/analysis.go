@@ -66,8 +66,8 @@ func InitAnalysisService(cfg *config.Config) *AnalysisService {
 		}
 	}
 
-	// Rate limiter: 2 second minimum between calls, max 3 calls per minute
-	rateLimiter := ai.NewRateLimiter(2*time.Second, 3)
+	// Rate limiter: 2 second minimum between calls, max 10 calls per minute
+	rateLimiter := ai.NewRateLimiter(2*time.Second, 10)
 
 	// In-flight tracker with 5 minute timeout
 	inFlightTracker := ai.NewInFlightTracker(5 * time.Minute)

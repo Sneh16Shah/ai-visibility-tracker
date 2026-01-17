@@ -121,6 +121,9 @@ export default function Dashboard() {
     useEffect(() => {
         if (!selectedBrandId) return
 
+        // Reset state when brand changes
+        setHasRealData(false)
+
         const fetchDashboardData = async () => {
             try {
                 setLoading(true)
@@ -132,7 +135,10 @@ export default function Dashboard() {
                 const hasData = data.total_mentions && data.total_mentions > 0
                 setHasRealData(hasData)
 
-                // Update charts only if real data is available
+                // Get current brand for fallback data
+                const currentBrand = brands.find(b => b.id === selectedBrandId)
+
+                // Update charts - use real data if available, otherwise use brand-specific fallback
                 if (hasData) {
                     if (data.trends && data.trends.length > 0) {
                         setTrendData(data.trends.map(t => ({
@@ -140,14 +146,23 @@ export default function Dashboard() {
                             visibility: t.visibility_score,
                             mentions: t.mention_count,
                         })))
+                    } else {
+                        setTrendData(demoTrendData)
                     }
 
+                    // Use API data for charts, or generate brand-specific fallback
                     if (data.citation_breakdown && data.citation_breakdown.length > 0) {
                         setCitationShareData(data.citation_breakdown)
+                    } else {
+                        const fallback = generateDemoChartData(currentBrand)
+                        setCitationShareData(fallback.citationData)
                     }
 
                     if (data.competitor_data && data.competitor_data.length > 0) {
                         setCompetitorData(data.competitor_data)
+                    } else {
+                        const fallback = generateDemoChartData(currentBrand)
+                        setCompetitorData(fallback.competitorData)
                     }
                 }
 
@@ -167,7 +182,7 @@ export default function Dashboard() {
         // Refresh every 30 seconds
         const interval = setInterval(fetchDashboardData, 30000)
         return () => clearInterval(interval)
-    }, [selectedBrandId])
+    }, [selectedBrandId, brands])
 
     // Empty state when no analysis has been run
     const EmptyState = () => (
