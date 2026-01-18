@@ -167,9 +167,44 @@ func (r *BrandRepository) Update(id int, req models.UpdateBrandRequest) (*models
 	return r.GetByID(id)
 }
 
-// Delete deletes a brand
+// Delete deletes a brand and all related data (cascade delete)
 func (r *BrandRepository) Delete(id int) error {
-	_, err := r.db.Exec("DELETE FROM brands WHERE id = ?", id)
+	// Delete in order to respect foreign key constraints:
+	// 1. First delete mentions (references ai_responses)
+	_, err := r.db.Exec(`
+		DELETE FROM mentions 
+		WHERE ai_response_id IN (SELECT id FROM ai_responses WHERE brand_id = ?)
+	`, id)
+	if err != nil {
+		return err
+	}
+
+	// 2. Delete AI responses
+	_, err = r.db.Exec("DELETE FROM ai_responses WHERE brand_id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	// 3. Delete metric snapshots
+	_, err = r.db.Exec("DELETE FROM metric_snapshots WHERE brand_id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	// 4. Delete brand aliases
+	_, err = r.db.Exec("DELETE FROM brand_aliases WHERE brand_id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	// 5. Delete competitors
+	_, err = r.db.Exec("DELETE FROM competitors WHERE brand_id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	// 6. Finally delete the brand itself
+	_, err = r.db.Exec("DELETE FROM brands WHERE id = ?", id)
 	return err
 }
 

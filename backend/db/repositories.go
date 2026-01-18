@@ -68,6 +68,12 @@ func (r *PromptRepository) Create(category, template, description string) (*mode
 	return r.GetByID(int(promptID))
 }
 
+// Delete deletes a prompt by ID
+func (r *PromptRepository) Delete(id int) error {
+	_, err := r.db.Exec("DELETE FROM prompts WHERE id = ?", id)
+	return err
+}
+
 // AIResponseRepository handles AI response database operations
 type AIResponseRepository struct {
 	db *sql.DB
@@ -148,6 +154,56 @@ func (r *AIResponseRepository) GetByBrandID(brandID int) ([]models.AIResponse, e
 		responses = append(responses, response)
 	}
 	return responses, nil
+}
+
+// GetLatestRunByBrandID retrieves only AI responses from the most recent analysis run
+// (responses created within 5 minutes of the latest response)
+func (r *AIResponseRepository) GetLatestRunByBrandID(brandID int) ([]models.AIResponse, error) {
+	// Get responses from the latest run (within 5 minutes of the most recent response)
+	rows, err := r.db.Query(`
+		SELECT id, brand_id, prompt_id, prompt_text, response_text, model_name, created_at 
+		FROM ai_responses 
+		WHERE brand_id = ? 
+		AND created_at >= (
+			SELECT created_at - INTERVAL 5 MINUTE 
+			FROM ai_responses 
+			WHERE brand_id = ? 
+			ORDER BY created_at DESC 
+			LIMIT 1
+		)
+		ORDER BY created_at DESC`,
+		brandID, brandID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var responses []models.AIResponse
+	for rows.Next() {
+		var response models.AIResponse
+		if err := rows.Scan(&response.ID, &response.BrandID, &response.PromptID, &response.PromptText, &response.ResponseText, &response.ModelName, &response.CreatedAt); err != nil {
+			return nil, err
+		}
+		responses = append(responses, response)
+	}
+	return responses, nil
+}
+
+// DeleteByBrandID deletes all AI responses and their mentions for a brand
+func (r *AIResponseRepository) DeleteByBrandID(brandID int) error {
+	// First delete mentions for all responses of this brand
+	_, err := r.db.Exec(`
+		DELETE FROM mentions 
+		WHERE ai_response_id IN (SELECT id FROM ai_responses WHERE brand_id = ?)
+	`, brandID)
+	if err != nil {
+		return err
+	}
+
+	// Then delete the responses
+	_, err = r.db.Exec("DELETE FROM ai_responses WHERE brand_id = ?", brandID)
+	return err
 }
 
 // MentionRepository handles mention database operations

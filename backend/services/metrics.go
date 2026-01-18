@@ -17,9 +17,9 @@ func NewMetricsCalculator() *MetricsCalculator {
 
 // CalculateAndStoreMetrics calculates all metrics for a brand and stores a snapshot
 func (m *MetricsCalculator) CalculateAndStoreMetrics(brandID int) (*models.MetricSnapshot, error) {
-	// Get all AI responses for this brand
+	// Get only the latest run AI responses for this brand (not historical)
 	responseRepo := db.NewAIResponseRepository()
-	responses, err := responseRepo.GetByBrandID(brandID)
+	responses, err := responseRepo.GetLatestRunByBrandID(brandID)
 	if err != nil {
 		return nil, err
 	}

@@ -156,6 +156,19 @@ export async function getPrompts() {
     return apiCall('/prompts');
 }
 
+export async function createPrompt(category, template, description = '') {
+    return apiCall('/prompts', {
+        method: 'POST',
+        body: JSON.stringify({ category, template, description }),
+    });
+}
+
+export async function deletePrompt(id) {
+    return apiCall(`/prompts/${id}`, {
+        method: 'DELETE',
+    });
+}
+
 // ============================================
 // Analysis APIs (with rate limiting protection)
 // ============================================

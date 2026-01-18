@@ -49,6 +49,7 @@ func Setup(router *gin.Engine) {
 		{
 			prompts.GET("", controllers.GetPrompts)
 			prompts.POST("", controllers.CreatePrompt)
+			prompts.DELETE("/:id", controllers.DeletePrompt)
 		}
 
 		// Analysis routes

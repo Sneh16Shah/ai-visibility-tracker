@@ -185,7 +185,7 @@ func (s *AnalysisService) RunAnalysis(ctx context.Context, brandID int, promptID
 	}
 
 	// Limit number of prompts to avoid excessive API calls
-	maxPrompts := 3
+	maxPrompts := 6
 	if len(prompts) > maxPrompts {
 		prompts = prompts[:maxPrompts]
 	}
@@ -195,6 +195,13 @@ func (s *AnalysisService) RunAnalysis(ctx context.Context, brandID int, promptID
 	}
 
 	responseRepo := db.NewAIResponseRepository()
+
+	// Delete existing responses for this brand before running new analysis
+	// This ensures we only keep the latest run data
+	if err := responseRepo.DeleteByBrandID(brandID); err != nil {
+		log.Printf("Warning: failed to delete old responses for brand %d: %v", brandID, err)
+		// Continue anyway - not critical
+	}
 
 	// Process each prompt
 	for _, prompt := range prompts {

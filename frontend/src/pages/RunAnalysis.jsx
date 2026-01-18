@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import * as api from '../api/client'
+import { AI_MODELS, isPuterAvailable, queryMultipleModels, extractMentions, calculateResponseScore } from '../utils/puter'
 
 // Default prompt templates (used when API is unavailable)
 const defaultPromptTemplates = [
@@ -12,6 +14,9 @@ const defaultPromptTemplates = [
 ]
 
 export default function RunAnalysis() {
+    const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
+
     const [templates, setTemplates] = useState(defaultPromptTemplates)
     const [isRunning, setIsRunning] = useState(false)
     const [progress, setProgress] = useState(0)
@@ -19,17 +24,39 @@ export default function RunAnalysis() {
     const [error, setError] = useState(null)
     const [analysisStatus, setAnalysisStatus] = useState(null)
     const [cooldownSeconds, setCooldownSeconds] = useState(0)
+    const [showCompletionModal, setShowCompletionModal] = useState(false)
+    const [showAddPrompt, setShowAddPrompt] = useState(false)
+    const [newPromptTemplate, setNewPromptTemplate] = useState('')
+    const [newPromptCategory, setNewPromptCategory] = useState('Custom')
 
     // Brand selection
     const [brands, setBrands] = useState([])
     const [selectedBrandId, setSelectedBrandId] = useState(null)
 
+    // Compare Mode (Multi-AI)
+    const [compareMode, setCompareMode] = useState(false)
+    const [selectedModels, setSelectedModels] = useState(['gpt-5.2', 'claude-sonnet-4.5', 'gemini-3-pro', 'llama-4-maverick'])
+    const [compareResults, setCompareResults] = useState([])
+
     // Ref to prevent double-clicks and React re-render issues
     const isRunningRef = useRef(false)
     const lastRunTime = useRef(0)
+    const abortControllerRef = useRef(null)
 
     // Minimum time between runs (client-side debounce)
     const MIN_RUN_INTERVAL = 3000 // 3 seconds
+
+    // Cancel analysis function
+    const cancelAnalysis = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort()
+            abortControllerRef.current = null
+        }
+        setIsRunning(false)
+        isRunningRef.current = false
+        setProgress(0)
+        setError('Analysis cancelled')
+    }, [])
 
     // Fetch brands on mount
     useEffect(() => {
@@ -37,8 +64,13 @@ export default function RunAnalysis() {
             try {
                 const data = await api.getBrands()
                 setBrands(data.brands || [])
-                // Auto-select first brand if available
-                if (data.brands && data.brands.length > 0) {
+
+                // Check for brand_id in URL params first
+                const urlBrandId = searchParams.get('brand_id')
+                if (urlBrandId && data.brands?.some(b => b.id === parseInt(urlBrandId))) {
+                    setSelectedBrandId(parseInt(urlBrandId))
+                } else if (data.brands && data.brands.length > 0) {
+                    // Fall back to first brand
                     setSelectedBrandId(data.brands[0].id)
                 }
             } catch (err) {
@@ -46,7 +78,7 @@ export default function RunAnalysis() {
             }
         }
         fetchBrands()
-    }, [])
+    }, [searchParams])
 
     // Fetch previous analysis results when brand changes
     useEffect(() => {
@@ -110,6 +142,112 @@ export default function RunAnalysis() {
         ))
     }
 
+    // Get selected brand info
+    const getSelectedBrand = () => {
+        return brands.find(b => b.id === selectedBrandId)
+    }
+
+    // Run Compare Mode analysis (multi-model via Puter.js)
+    const runCompareAnalysis = useCallback(async () => {
+        if (selectedModels.length === 0) {
+            setError('Please select at least one AI model to compare')
+            return
+        }
+        if (!isPuterAvailable()) {
+            setError('Puter.js not available. Please refresh the page.')
+            return
+        }
+
+        const brand = getSelectedBrand()
+        if (!brand) {
+            setError('Please select a brand first')
+            return
+        }
+
+        isRunningRef.current = true
+        lastRunTime.current = Date.now()
+        setIsRunning(true)
+        setProgress(0)
+        setCompareResults([])
+        setError(null)
+
+        try {
+            // Get selected prompts
+            const selectedPrompts = templates.filter(t => t.selected)
+            if (selectedPrompts.length === 0) {
+                throw new Error('Please select at least one prompt')
+            }
+
+            const allModelResults = []
+            const totalQueries = selectedModels.length * selectedPrompts.length
+            let completedQueries = 0
+
+            // For each prompt, query all selected models
+            for (const prompt of selectedPrompts) {
+                // Build actual prompt with brand context
+                const actualPrompt = prompt.template
+                    .replace(/{brand}/gi, brand.name)
+                    .replace(/{category}/gi, brand.industry || 'software')
+                    .replace(/{competitor}/gi, brand.competitors?.[0]?.name || 'competitors')
+
+                // Query all models in parallel
+                const results = await queryMultipleModels(actualPrompt, selectedModels)
+
+                for (const result of results) {
+                    if (result.success) {
+                        // Extract mentions
+                        const mentions = extractMentions(
+                            result.response,
+                            brand.name,
+                            brand.aliases?.map(a => a.alias) || [],
+                            brand.competitors || []
+                        )
+
+                        // Calculate score for this response
+                        const score = calculateResponseScore(mentions, brand.name)
+
+                        const modelInfo = AI_MODELS.find(m => m.id === result.model)
+                        allModelResults.push({
+                            id: `${result.model}-${prompt.id}-${Date.now()}`,
+                            model: modelInfo?.name || result.model,
+                            modelId: result.model,
+                            provider: modelInfo?.provider || 'Unknown',
+                            color: modelInfo?.color || '#888',
+                            prompt: prompt.template,
+                            actualPrompt,
+                            response: result.response,
+                            mentions,
+                            score,
+                            timestamp: result.timestamp
+                        })
+                    } else {
+                        allModelResults.push({
+                            id: `${result.model}-${prompt.id}-${Date.now()}`,
+                            model: result.model,
+                            modelId: result.model,
+                            error: result.error,
+                            prompt: prompt.template,
+                            score: 0
+                        })
+                    }
+                    completedQueries++
+                    setProgress(Math.round((completedQueries / totalQueries) * 100))
+                }
+            }
+
+            setCompareResults(allModelResults)
+            setProgress(100)
+            setShowCompletionModal(true)
+
+        } catch (err) {
+            console.error('Compare analysis failed:', err)
+            setError(err.message || 'Comparison failed')
+        } finally {
+            setIsRunning(false)
+            isRunningRef.current = false
+        }
+    }, [selectedModels, templates, brands, selectedBrandId])
+
     // Debounced run analysis function
     const runAnalysis = useCallback(async () => {
         // Prevent double-clicks and rapid re-runs
@@ -170,8 +308,10 @@ export default function RunAnalysis() {
 
             setProgress(100)
 
-            // Show success message if there were errors
-            if (result.errors && result.errors.length > 0) {
+            // Show completion modal on success
+            if (!result.errors || result.errors.length === 0) {
+                setShowCompletionModal(true)
+            } else {
                 setError(`Completed with warnings: ${result.errors.join(', ')}`)
             }
 
@@ -230,7 +370,7 @@ export default function RunAnalysis() {
                             {analysisStatus.provider_available ? (
                                 <span className="flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-green-400"></span>
-                                    AI Ready ({analysisStatus.rate_limit_status?.calls_this_minute || 0}/3 calls)
+                                    AI Ready ({analysisStatus.rate_limit_status?.calls_this_minute || 0}/{analysisStatus.rate_limit_status?.max_calls_per_minute || 10} calls)
                                 </span>
                             ) : (
                                 <span className="flex items-center gap-2">
@@ -240,6 +380,18 @@ export default function RunAnalysis() {
                             )}
                         </div>
                     )}
+
+                    {/* Compare Models Toggle */}
+                    <button
+                        onClick={() => setCompareMode(!compareMode)}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${compareMode
+                            ? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+                            : 'bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--surface-light)] hover:border-[var(--primary)]'
+                            }`}
+                    >
+                        <span>{compareMode ? '✓' : ''}</span>
+                        <span>Compare Models</span>
+                    </button>
 
                     {/* Brand Selector */}
                     <select
@@ -259,11 +411,13 @@ export default function RunAnalysis() {
                     </select>
 
                     <button
-                        onClick={runAnalysis}
-                        disabled={!canRun}
-                        className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${!canRun
+                        onClick={compareMode ? runCompareAnalysis : runAnalysis}
+                        disabled={!canRun || (compareMode && selectedModels.length === 0)}
+                        className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${(!canRun || (compareMode && selectedModels.length === 0))
                             ? 'bg-[var(--surface-light)] text-[var(--text-muted)] cursor-not-allowed'
-                            : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25'
+                            : compareMode
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg shadow-purple-500/25'
+                                : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25'
                             }`}
                     >
                         {isRunning ? (
@@ -283,6 +437,17 @@ export default function RunAnalysis() {
                             </>
                         )}
                     </button>
+
+                    {/* Cancel button - show only when running */}
+                    {isRunning && (
+                        <button
+                            onClick={cancelAnalysis}
+                            className="px-4 py-3 rounded-lg font-medium border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-all duration-200 flex items-center gap-2"
+                        >
+                            <span>✕</span>
+                            <span>Cancel</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -309,6 +474,49 @@ export default function RunAnalysis() {
                             style={{ width: `${progress}%` }}
                         />
                     </div>
+                </div>
+            )}
+
+            {/* AI Model Selection (Compare Mode) */}
+            {compareMode && (
+                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-purple-500/30">
+                    <h3 className="text-lg font-semibold text-[var(--text)] mb-4 flex items-center gap-2">
+                        <span>🤖</span> Select AI Models to Compare
+                    </h3>
+                    <div className="flex flex-wrap gap-3">
+                        {AI_MODELS.map((model) => {
+                            const isSelected = selectedModels.includes(model.id)
+                            return (
+                                <button
+                                    key={model.id}
+                                    onClick={() => {
+                                        if (isSelected) {
+                                            setSelectedModels(prev => prev.filter(id => id !== model.id))
+                                        } else {
+                                            setSelectedModels(prev => [...prev, model.id])
+                                        }
+                                    }}
+                                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${isSelected
+                                        ? 'text-white shadow-lg'
+                                        : 'bg-[var(--surface-light)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                                        }`}
+                                    style={{
+                                        backgroundColor: isSelected ? model.color : undefined,
+                                    }}
+                                >
+                                    <span>{isSelected ? '✓' : ''}</span>
+                                    <span>{model.name}</span>
+                                    <span className="text-xs opacity-70">({model.provider})</span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                    {selectedModels.length === 0 && (
+                        <p className="text-amber-400 text-sm mt-3">⚠️ Select at least one model to run comparison</p>
+                    )}
+                    {!isPuterAvailable() && (
+                        <p className="text-amber-400 text-sm mt-3">⚠️ Puter.js not loaded. Please refresh the page.</p>
+                    )}
                 </div>
             )}
 
@@ -342,7 +550,173 @@ export default function RunAnalysis() {
                         </div>
                     ))}
                 </div>
+
+                {/* Add Custom Question */}
+                {!showAddPrompt ? (
+                    <button
+                        onClick={() => setShowAddPrompt(true)}
+                        className="mt-4 w-full py-3 border-2 border-dashed border-[var(--surface-light)] rounded-xl text-[var(--text-muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                        <span>+</span>
+                        <span>Add Custom Question</span>
+                    </button>
+                ) : (
+                    <div className="mt-4 p-4 border border-[var(--surface-light)] rounded-xl bg-[var(--background)]">
+                        <div className="flex gap-3 mb-3">
+                            <input
+                                type="text"
+                                value={newPromptCategory}
+                                onChange={(e) => setNewPromptCategory(e.target.value)}
+                                placeholder="Category"
+                                className="w-32 px-3 py-2 bg-[var(--surface)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] text-sm focus:outline-none focus:border-[var(--primary)]"
+                            />
+                            <input
+                                type="text"
+                                value={newPromptTemplate}
+                                onChange={(e) => setNewPromptTemplate(e.target.value)}
+                                placeholder="Enter your question... Use {brand}, {competitor}, {category} for placeholders"
+                                className="flex-1 px-3 py-2 bg-[var(--surface)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] text-sm focus:outline-none focus:border-[var(--primary)]"
+                            />
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                onClick={() => {
+                                    setShowAddPrompt(false)
+                                    setNewPromptTemplate('')
+                                    setNewPromptCategory('Custom')
+                                }}
+                                className="px-4 py-2 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!newPromptTemplate.trim()) return
+                                    try {
+                                        const created = await api.createPrompt(newPromptCategory, newPromptTemplate)
+                                        setTemplates(prev => [...prev, { ...created, selected: true }])
+                                        setShowAddPrompt(false)
+                                        setNewPromptTemplate('')
+                                        setNewPromptCategory('Custom')
+                                    } catch (err) {
+                                        console.error('Failed to create prompt:', err)
+                                        setError('Failed to create custom prompt')
+                                    }
+                                }}
+                                className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:opacity-90 transition-opacity"
+                            >
+                                Add Question
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            {/* Compare Results (Multi-Model) */}
+            {compareMode && compareResults.length > 0 && (
+                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-purple-500/30">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-[var(--text)] flex items-center gap-2">
+                            <span>📊</span> Model Comparison Results
+                        </h3>
+                        <span className="text-sm text-[var(--text-muted)]">
+                            {compareResults.length} responses from {selectedModels.length} models
+                        </span>
+                    </div>
+
+                    {/* Score Summary by Model */}
+                    <div className="mb-6">
+                        <h4 className="text-sm font-medium text-[var(--text-muted)] mb-3">Visibility Score by Model</h4>
+                        <div className="space-y-2">
+                            {(() => {
+                                // Calculate average score per model
+                                const modelScores = {}
+                                compareResults.forEach(r => {
+                                    if (!modelScores[r.model]) {
+                                        modelScores[r.model] = { total: 0, count: 0, color: r.color }
+                                    }
+                                    modelScores[r.model].total += r.score
+                                    modelScores[r.model].count++
+                                })
+                                return Object.entries(modelScores).map(([model, data]) => {
+                                    const avgScore = Math.round(data.total / data.count)
+                                    return (
+                                        <div key={model} className="flex items-center gap-3">
+                                            <span className="w-28 text-sm text-[var(--text)]">{model}</span>
+                                            <div className="flex-1 bg-[var(--surface-light)] rounded-full h-4 overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full transition-all duration-500"
+                                                    style={{
+                                                        width: `${avgScore}%`,
+                                                        backgroundColor: data.color
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="w-12 text-sm font-mono text-[var(--text)]">{avgScore}</span>
+                                        </div>
+                                    )
+                                })
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* Detailed Results Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {compareResults.map((result) => (
+                            <div
+                                key={result.id}
+                                className="p-4 rounded-xl border bg-[var(--background)]"
+                                style={{ borderColor: result.color + '50' }}
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <div
+                                            className="w-3 h-3 rounded-full"
+                                            style={{ backgroundColor: result.color }}
+                                        />
+                                        <span className="font-medium text-[var(--text)]">{result.model}</span>
+                                        <span className="text-xs text-[var(--text-muted)]">({result.provider})</span>
+                                    </div>
+                                    <span
+                                        className="text-sm font-mono px-2 py-0.5 rounded"
+                                        style={{
+                                            backgroundColor: result.color + '20',
+                                            color: result.color
+                                        }}
+                                    >
+                                        Score: {result.score}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-[var(--text-muted)] mb-2 font-mono">{result.prompt}</p>
+                                {result.error ? (
+                                    <p className="text-red-400 text-sm">Error: {result.error}</p>
+                                ) : (
+                                    <>
+                                        <p className="text-sm text-[var(--text)] line-clamp-3 mb-2">
+                                            {result.response?.slice(0, 200)}...
+                                        </p>
+                                        {result.mentions?.length > 0 && (
+                                            <div className="flex flex-wrap gap-1">
+                                                {result.mentions.map((m, i) => (
+                                                    <span
+                                                        key={i}
+                                                        className={`text-xs px-2 py-0.5 rounded ${m.entityType === 'brand'
+                                                            ? 'bg-green-500/20 text-green-400'
+                                                            : 'bg-blue-500/20 text-blue-400'
+                                                            }`}
+                                                    >
+                                                        {m.entityName}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Results */}
             {results.length > 0 && (
@@ -395,6 +769,35 @@ export default function RunAnalysis() {
                                 )}
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Completion Modal */}
+            {showCompletionModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-[var(--surface)] rounded-2xl p-8 border border-[var(--surface-light)] max-w-md mx-4 text-center">
+                        <div className="text-6xl mb-4">🎉</div>
+                        <h3 className="text-2xl font-bold text-[var(--text)] mb-2">
+                            Analysis Complete!
+                        </h3>
+                        <p className="text-[var(--text-muted)] mb-6">
+                            Your dashboard is ready with fresh AI visibility insights for <strong>{selectedBrand?.name || 'your brand'}</strong>.
+                        </p>
+                        <div className="flex gap-3 justify-center">
+                            <button
+                                onClick={() => setShowCompletionModal(false)}
+                                className="px-4 py-2 border border-[var(--surface-light)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--surface-light)] transition-colors"
+                            >
+                                Stay Here
+                            </button>
+                            <button
+                                onClick={() => navigate(`/?brand_id=${selectedBrandId}`)}
+                                className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium rounded-lg hover:opacity-90 transition-all"
+                            >
+                                View Dashboard →
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

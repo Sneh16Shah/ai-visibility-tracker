@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import * as api from '../api/client'
+import { AI_MODELS } from '../utils/puter'
 
 const demoTrendData = [
     { date: 'Dec 25', visibility: 65, mentions: 12 },
@@ -84,6 +85,7 @@ function KPICard({ title, value, subtitle, trend, icon, loading }) {
 
 export default function Dashboard() {
     const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
     const [loading, setLoading] = useState(true)
     const [dashboardData, setDashboardData] = useState(null)
     const [trendData, setTrendData] = useState(demoTrendData)
@@ -100,9 +102,17 @@ export default function Dashboard() {
             try {
                 const data = await api.getBrands()
                 setBrands(data.brands || [])
-                if (data.brands && data.brands.length > 0) {
+
+                // Check for brand_id in URL params first
+                const urlBrandId = searchParams.get('brand_id')
+                if (urlBrandId && data.brands?.some(b => b.id === parseInt(urlBrandId))) {
+                    setSelectedBrandId(parseInt(urlBrandId))
+                    const selectedBrand = data.brands.find(b => b.id === parseInt(urlBrandId))
+                    const demoData = generateDemoChartData(selectedBrand)
+                    setCitationShareData(demoData.citationData)
+                    setCompetitorData(demoData.competitorData)
+                } else if (data.brands && data.brands.length > 0) {
                     setSelectedBrandId(data.brands[0].id)
-                    // Set initial demo data with real brand names
                     const demoData = generateDemoChartData(data.brands[0])
                     setCitationShareData(demoData.citationData)
                     setCompetitorData(demoData.competitorData)
@@ -112,7 +122,7 @@ export default function Dashboard() {
             }
         }
         fetchBrands()
-    }, [])
+    }, [searchParams])
 
     // Get selected brand object
     const selectedBrand = brands.find(b => b.id === selectedBrandId)
@@ -195,7 +205,7 @@ export default function Dashboard() {
                 Run your first AI visibility analysis for <strong>{selectedBrand?.name || 'this brand'}</strong> to see how it appears in AI responses.
             </p>
             <button
-                onClick={() => navigate('/analysis')}
+                onClick={() => navigate(`/analysis?brand_id=${selectedBrandId}`)}
                 className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium rounded-xl hover:opacity-90 transition-all duration-300"
             >
                 🚀 Run Analysis
@@ -270,6 +280,44 @@ export default function Dashboard() {
                             icon="😊"
                             loading={loading}
                         />
+                    </div>
+
+                    {/* Per-Model Visibility Chart */}
+                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-purple-500/30">
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="text-xl">🤖</span>
+                            <h3 className="text-lg font-semibold text-[var(--text)]">Visibility by AI Model</h3>
+                        </div>
+                        <p className="text-sm text-[var(--text-muted)] mb-4">Compare how often your brand is mentioned across different AI assistants</p>
+                        <div className="space-y-3">
+                            {AI_MODELS.map((model, index) => {
+                                // Simulated scores - in production, fetch from API
+                                const scores = [78, 65, 82, 55]
+                                const score = scores[index] || 50
+                                return (
+                                    <div key={model.id} className="flex items-center gap-3">
+                                        <div className="w-32 flex items-center gap-2">
+                                            <div
+                                                className="w-3 h-3 rounded-full"
+                                                style={{ backgroundColor: model.color }}
+                                            />
+                                            <span className="text-sm text-[var(--text)]">{model.name}</span>
+                                        </div>
+                                        <div className="flex-1 bg-[var(--surface-light)] rounded-full h-5 overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full transition-all duration-700"
+                                                style={{
+                                                    width: `${score}%`,
+                                                    backgroundColor: model.color
+                                                }}
+                                            />
+                                        </div>
+                                        <span className="w-12 text-sm font-mono text-[var(--text)] text-right">{score}</span>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] mt-4">Run Compare Mode analysis to update these scores with real data</p>
                     </div>
 
 

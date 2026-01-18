@@ -93,13 +93,6 @@ export default function Login() {
                             Sign up
                         </Link>
                     </div>
-
-                    {/* Demo credentials */}
-                    <div className="mt-6 p-4 bg-[var(--background)] rounded-lg">
-                        <p className="text-xs text-[var(--text-muted)] text-center">
-                            Demo: <span className="text-[var(--text)]">demo@example.com</span> / <span className="text-[var(--text)]">demo123</span>
-                        </p>
-                    </div>
                 </div>
             </div>
         </div>

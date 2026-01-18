@@ -25,6 +25,65 @@
 18. **Mobile Responsive** - Fully optimized for mobile viewing
 19. **Dark/Light Mode Toggle** - Theme switching
 
+---
+
+### 🎨 Code Quality: Frontend Styling Refactor
+
+**Problem:** Current inline Tailwind classes are hard to read and maintain:
+```jsx
+// ❌ Current (messy)
+<button className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-xl shadow-lg shadow-indigo-500/25 transition-all duration-300">
+```
+
+**Solution:** Adopt industry-standard CSS organization like big companies:
+
+| Approach | Used By | Description |
+|----------|---------|-------------|
+| **CSS Modules** | Meta, Vercel | `.module.css` files scoped per component |
+| **Styled Components** | Airbnb, Spotify | CSS-in-JS with tagged template literals |
+| **Design Tokens** | Salesforce, Adobe | `tokens.css` with CSS variables |
+| **BEM + Utility** | GitHub, Stripe | Semantic class names + utilities |
+
+**Recommended Approach for this project:**
+
+1. **Create Design Tokens** (`styles/tokens.css`)
+   ```css
+   :root {
+     --btn-primary-bg: linear-gradient(to right, #6366f1, #9333ea);
+     --btn-primary-hover: linear-gradient(to right, #4f46e5, #7e22ce);
+     --radius-lg: 0.75rem;
+     --shadow-primary: 0 10px 15px -3px rgb(99 102 241 / 0.25);
+   }
+   ```
+
+2. **Create Component Classes** (`styles/components.css`)
+   ```css
+   .btn-primary {
+     background: var(--btn-primary-bg);
+     color: white;
+     padding: 0.75rem 1.5rem;
+     border-radius: var(--radius-lg);
+     box-shadow: var(--shadow-primary);
+   }
+   .btn-primary:hover {
+     background: var(--btn-primary-hover);
+   }
+   ```
+
+3. **Use Semantic Classes in JSX**
+   ```jsx
+   // ✅ Clean & readable
+   <button className="btn-primary">Run Analysis</button>
+   ```
+
+**Tasks:**
+- [ ] Create `styles/tokens.css` with design variables
+- [ ] Create `styles/components.css` with reusable component classes
+- [ ] Refactor Dashboard.jsx to use semantic classes
+- [ ] Refactor RunAnalysis.jsx to use semantic classes
+- [ ] Refactor Brands.jsx to use semantic classes
+- [ ] Document styling conventions in README
+
 
 1. AI Visibility Enhancement Feature
 
@@ -59,3 +118,6 @@ Allow users to take actions that **increase their brand's visibility in AI model
 - Add "Recommendations" section to Dashboard
 - Analyze AI responses to identify WHY brand isn't mentioned
 - Generate actionable suggestions based on gaps
+
+free api
+openrouter
