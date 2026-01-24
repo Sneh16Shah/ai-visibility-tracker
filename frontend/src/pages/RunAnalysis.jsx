@@ -13,6 +13,10 @@ const defaultPromptTemplates = [
     { id: 6, category: 'Features', template: 'What are the key features of {brand}?', selected: false },
 ]
 
+// Default categories - prompts NOT in this list are user-created and can be edited/deleted
+const DEFAULT_CATEGORIES = ['Best Tools', 'Alternatives', 'Recommendations', 'Comparison', 'Reviews', 'Features']
+const isCustomPrompt = (prompt) => !DEFAULT_CATEGORIES.includes(prompt.category)
+
 export default function RunAnalysis() {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
@@ -28,6 +32,11 @@ export default function RunAnalysis() {
     const [showAddPrompt, setShowAddPrompt] = useState(false)
     const [newPromptTemplate, setNewPromptTemplate] = useState('')
     const [newPromptCategory, setNewPromptCategory] = useState('Custom')
+
+    // Inline editing and delete modal state
+    const [editingPromptId, setEditingPromptId] = useState(null)
+    const [editingText, setEditingText] = useState('')
+    const [deleteModalPrompt, setDeleteModalPrompt] = useState(null)
 
     // Brand selection
     const [brands, setBrands] = useState([])
@@ -79,6 +88,29 @@ export default function RunAnalysis() {
         }
         fetchBrands()
     }, [searchParams])
+
+    // Fetch prompts from API on mount (includes custom questions)
+    useEffect(() => {
+        const fetchPrompts = async () => {
+            try {
+                const data = await api.getPrompts()
+                if (data.prompts && data.prompts.length > 0) {
+                    // Merge API prompts with selection state
+                    setTemplates(data.prompts.map(p => ({
+                        id: p.id,
+                        category: p.category,
+                        template: p.template,
+                        description: p.description,
+                        selected: p.category !== 'Features' // Default selection
+                    })))
+                }
+            } catch (err) {
+                console.log('Could not fetch prompts, using defaults:', err)
+                // Keep default templates if API fails
+            }
+        }
+        fetchPrompts()
+    }, [])
 
     // Fetch previous analysis results when brand changes
     useEffect(() => {
@@ -527,7 +559,7 @@ export default function RunAnalysis() {
                     {templates.map((template) => (
                         <div
                             key={template.id}
-                            onClick={() => toggleTemplate(template.id)}
+                            onClick={() => editingPromptId !== template.id && toggleTemplate(template.id)}
                             className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${template.selected
                                 ? 'border-[var(--primary)] bg-[var(--primary)]/10'
                                 : 'border-[var(--surface-light)] hover:border-[var(--surface-light)] hover:bg-[var(--surface-light)]/50'
@@ -544,8 +576,83 @@ export default function RunAnalysis() {
                                     <span className="inline-block px-2 py-0.5 bg-[var(--surface-light)] text-[var(--text-muted)] rounded text-xs mb-1">
                                         {template.category}
                                     </span>
-                                    <p className="text-[var(--text)] font-mono text-sm">{template.template}</p>
+                                    {/* Inline editing for Custom prompts */}
+                                    {editingPromptId === template.id ? (
+                                        <div className="flex gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="text"
+                                                value={editingText}
+                                                onChange={(e) => setEditingText(e.target.value)}
+                                                className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--primary)] rounded-lg text-[var(--text)] text-sm focus:outline-none"
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        (async () => {
+                                                            try {
+                                                                await api.updatePrompt(template.id, 'Custom', editingText, '');
+                                                                setTemplates(prev => prev.map(t =>
+                                                                    t.id === template.id ? { ...t, template: editingText } : t
+                                                                ));
+                                                                setEditingPromptId(null);
+                                                            } catch (err) {
+                                                                console.error('Failed to update:', err);
+                                                            }
+                                                        })();
+                                                    } else if (e.key === 'Escape') {
+                                                        setEditingPromptId(null);
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await api.updatePrompt(template.id, 'Custom', editingText, '');
+                                                        setTemplates(prev => prev.map(t =>
+                                                            t.id === template.id ? { ...t, template: editingText } : t
+                                                        ));
+                                                        setEditingPromptId(null);
+                                                    } catch (err) {
+                                                        console.error('Failed to update:', err);
+                                                    }
+                                                }}
+                                                className="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30"
+                                            >
+                                                ✓
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingPromptId(null)}
+                                                className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[var(--text)] font-mono text-sm">{template.template}</p>
+                                    )}
                                 </div>
+                                {/* Edit/Delete for Custom (user-created) prompts */}
+                                {isCustomPrompt(template) && editingPromptId !== template.id && (
+                                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                            onClick={() => {
+                                                setEditingPromptId(template.id);
+                                                setEditingText(template.template);
+                                            }}
+                                            className="p-1.5 text-[var(--text-muted)] hover:text-blue-400 transition-colors"
+                                            title="Edit"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => setDeleteModalPrompt(template)}
+                                            className="p-1.5 text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                                            title="Delete"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -796,6 +903,44 @@ export default function RunAnalysis() {
                                 className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium rounded-lg hover:opacity-90 transition-all"
                             >
                                 View Dashboard →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteModalPrompt && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-red-500/30 max-w-md mx-4">
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="text-3xl">⚠️</span>
+                            <h3 className="text-xl font-bold text-[var(--text)]">Delete Question?</h3>
+                        </div>
+                        <p className="text-[var(--text-muted)] mb-2">Are you sure you want to delete this custom question?</p>
+                        <p className="text-sm text-[var(--text)] bg-[var(--background)] p-3 rounded-lg mb-6 font-mono border border-[var(--surface-light)]">
+                            "{deleteModalPrompt.template}"
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setDeleteModalPrompt(null)}
+                                className="px-4 py-2 border border-[var(--surface-light)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--surface-light)] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await api.deletePrompt(deleteModalPrompt.id);
+                                        setTemplates(prev => prev.filter(t => t.id !== deleteModalPrompt.id));
+                                        setDeleteModalPrompt(null);
+                                    } catch (err) {
+                                        console.error('Failed to delete:', err);
+                                    }
+                                }}
+                                className="px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors"
+                            >
+                                🗑️ Delete
                             </button>
                         </div>
                     </div>

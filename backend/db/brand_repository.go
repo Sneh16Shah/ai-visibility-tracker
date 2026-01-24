@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/Sneh16Shah/ai-visibility-tracker/models"
 )
@@ -153,6 +154,45 @@ func (r *BrandRepository) GetAll(userID int) ([]models.Brand, error) {
 	}
 
 	return brands, nil
+}
+
+// GetAllBrands retrieves ALL brands (for scheduler/admin)
+func (r *BrandRepository) GetAllBrands() ([]models.Brand, error) {
+	rows, err := r.db.Query(
+		"SELECT id, user_id, name, industry, COALESCE(alert_threshold, 0), COALESCE(schedule_frequency, ''), COALESCE(last_scheduled_run, '1970-01-01'), created_at, updated_at FROM brands",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var brands []models.Brand
+	for rows.Next() {
+		var brand models.Brand
+		if err := rows.Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.AlertThreshold, &brand.ScheduleFrequency, &brand.LastScheduledRun, &brand.CreatedAt, &brand.UpdatedAt); err != nil {
+			return nil, err
+		}
+		brands = append(brands, brand)
+	}
+	return brands, nil
+}
+
+// UpdateLastScheduledRun updates the last scheduled run time for a brand
+func (r *BrandRepository) UpdateLastScheduledRun(brandID int, runTime time.Time) error {
+	_, err := r.db.Exec(
+		"UPDATE brands SET last_scheduled_run = ? WHERE id = ?",
+		runTime, brandID,
+	)
+	return err
+}
+
+// UpdateAlertSettings updates alert threshold and schedule for a brand
+func (r *BrandRepository) UpdateAlertSettings(brandID int, threshold float64, frequency string) error {
+	_, err := r.db.Exec(
+		"UPDATE brands SET alert_threshold = ?, schedule_frequency = ? WHERE id = ?",
+		threshold, frequency, brandID,
+	)
+	return err
 }
 
 // Update updates a brand

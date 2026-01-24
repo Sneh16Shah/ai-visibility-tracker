@@ -26,6 +26,19 @@ async function apiCall(endpoint, options = {}) {
         ...options,
     });
 
+    // Handle non-JSON responses (HTML error pages, etc.)
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+        if (!response.ok) {
+            throw {
+                status: response.status,
+                message: `Server error: ${response.status} ${response.statusText}`,
+            };
+        }
+        // For non-JSON success responses (like CSV downloads), return text
+        return response.text();
+    }
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -106,6 +119,16 @@ export async function deleteBrand(id) {
     });
 }
 
+export async function updateAlertSettings(id, alertThreshold, scheduleFrequency) {
+    return apiCall(`/brands/${id}/alerts`, {
+        method: 'PUT',
+        body: JSON.stringify({
+            alert_threshold: alertThreshold,
+            schedule_frequency: scheduleFrequency,
+        }),
+    });
+}
+
 // ============================================
 // Competitor APIs
 // ============================================
@@ -169,6 +192,13 @@ export async function deletePrompt(id) {
     });
 }
 
+export async function updatePrompt(id, category, template, description = '') {
+    return apiCall(`/prompts/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ category, template, description }),
+    });
+}
+
 // ============================================
 // Analysis APIs (with rate limiting protection)
 // ============================================
@@ -207,6 +237,37 @@ export async function getMetrics(brandId) {
 
 export async function getDashboardData(brandId) {
     return apiCall(`/metrics/dashboard?brand_id=${brandId}`);
+}
+
+// ============================================
+// Export APIs
+// ============================================
+
+export async function exportCSV(brandId) {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE}/export/csv?brand_id=${brandId}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+    if (!response.ok) {
+        throw new Error('Export failed');
+    }
+    // Get filename from header or use default
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const filename = contentDisposition?.match(/filename=(.+)/)?.[1] || `visibility_report.csv`;
+
+    // Download the file
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    return true;
 }
 
 // ============================================

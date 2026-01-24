@@ -14,6 +14,11 @@ export default function BrandSetup() {
         competitors: '',
     })
 
+    // Edit and delete modal state
+    const [editingBrand, setEditingBrand] = useState(null)
+    const [editForm, setEditForm] = useState({ name: '', industry: '' })
+    const [deleteModalBrand, setDeleteModalBrand] = useState(null)
+
     // Fetch brands on mount
     useEffect(() => {
         fetchBrands()
@@ -215,12 +220,25 @@ export default function BrandSetup() {
                                     {brand.industry}
                                 </span>
                             </div>
-                            <button
-                                onClick={() => deleteBrand(brand.id)}
-                                className="text-red-400 hover:text-red-300 transition-colors p-2"
-                            >
-                                🗑️
-                            </button>
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={() => {
+                                        setEditingBrand(brand)
+                                        setEditForm({ name: brand.name, industry: brand.industry })
+                                    }}
+                                    className="text-blue-400 hover:text-blue-300 transition-colors p-2"
+                                    title="Edit"
+                                >
+                                    ✏️
+                                </button>
+                                <button
+                                    onClick={() => setDeleteModalBrand(brand)}
+                                    className="text-red-400 hover:text-red-300 transition-colors p-2"
+                                    title="Delete"
+                                >
+                                    🗑️
+                                </button>
+                            </div>
                         </div>
 
                         {/* Aliases */}
@@ -274,6 +292,99 @@ export default function BrandSetup() {
                     >
                         Add Your First Brand
                     </button>
+                </div>
+            )}
+
+            {/* Edit Brand Modal */}
+            {editingBrand && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--primary)]/30 max-w-md w-full mx-4">
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="text-2xl">✏️</span>
+                            <h3 className="text-xl font-bold text-[var(--text)]">Edit Brand</h3>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Brand Name</label>
+                                <input
+                                    type="text"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Industry</label>
+                                <input
+                                    type="text"
+                                    value={editForm.industry}
+                                    onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
+                                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)]"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 justify-end mt-6">
+                            <button
+                                onClick={() => setEditingBrand(null)}
+                                className="px-4 py-2 border border-[var(--surface-light)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--surface-light)] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await api.updateBrand(editingBrand.id, editForm)
+                                        setBrands(brands.map(b =>
+                                            b.id === editingBrand.id ? { ...b, ...editForm } : b
+                                        ))
+                                        setEditingBrand(null)
+                                    } catch (err) {
+                                        console.error('Failed to update brand:', err)
+                                        // Fallback: update local state
+                                        setBrands(brands.map(b =>
+                                            b.id === editingBrand.id ? { ...b, ...editForm } : b
+                                        ))
+                                        setEditingBrand(null)
+                                    }
+                                }}
+                                className="px-4 py-2 bg-[var(--primary)] text-white font-medium rounded-lg hover:bg-[var(--primary-dark)] transition-colors"
+                            >
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteModalBrand && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-red-500/30 max-w-md mx-4">
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="text-3xl">⚠️</span>
+                            <h3 className="text-xl font-bold text-[var(--text)]">Delete Brand?</h3>
+                        </div>
+                        <p className="text-[var(--text-muted)] mb-2">Are you sure you want to delete this brand?</p>
+                        <p className="text-lg text-[var(--text)] font-semibold mb-2">"{deleteModalBrand.name}"</p>
+                        <p className="text-sm text-red-400 mb-6">⚠️ This will also delete all analysis results for this brand.</p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setDeleteModalBrand(null)}
+                                className="px-4 py-2 border border-[var(--surface-light)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--surface-light)] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    await deleteBrand(deleteModalBrand.id)
+                                    setDeleteModalBrand(null)
+                                }}
+                                className="px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors"
+                            >
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

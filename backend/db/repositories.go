@@ -74,6 +74,18 @@ func (r *PromptRepository) Delete(id int) error {
 	return err
 }
 
+// Update updates a prompt by ID
+func (r *PromptRepository) Update(id int, category, template, description string) (*models.Prompt, error) {
+	_, err := r.db.Exec(
+		"UPDATE prompts SET category = ?, template = ?, description = ? WHERE id = ?",
+		category, template, description, id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetByID(id)
+}
+
 // AIResponseRepository handles AI response database operations
 type AIResponseRepository struct {
 	db *sql.DB

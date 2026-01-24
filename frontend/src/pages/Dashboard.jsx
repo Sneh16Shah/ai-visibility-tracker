@@ -95,6 +95,7 @@ export default function Dashboard() {
     const [brands, setBrands] = useState([])
     const [selectedBrandId, setSelectedBrandId] = useState(null)
     const [hasRealData, setHasRealData] = useState(false)
+    const [competitorInsights, setCompetitorInsights] = useState(null)
 
     // Fetch brands on mount
     useEffect(() => {
@@ -238,6 +239,23 @@ export default function Dashboard() {
                             ))
                         )}
                     </select>
+
+                    {/* Export CSV Button */}
+                    {hasRealData && (
+                        <button
+                            onClick={async () => {
+                                try {
+                                    await api.exportCSV(selectedBrandId);
+                                } catch (err) {
+                                    console.error('Export failed:', err);
+                                }
+                            }}
+                            className="px-4 py-2 bg-[var(--surface)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] hover:border-[var(--primary)] transition-all flex items-center gap-2"
+                        >
+                            <span>📥</span>
+                            <span>Export CSV</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -318,6 +336,109 @@ export default function Dashboard() {
                             })}
                         </div>
                         <p className="text-xs text-[var(--text-muted)] mt-4">Run Compare Mode analysis to update these scores with real data</p>
+                    </div>
+
+                    {/* Competitor Deep Dive */}
+                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-orange-500/30">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl">🔍</span>
+                                <h3 className="text-lg font-semibold text-[var(--text)]">Competitor Deep Dive</h3>
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    if (!window.puter?.ai) {
+                                        alert('Puter.js not loaded');
+                                        return;
+                                    }
+                                    const brand = brands.find(b => b.id === selectedBrandId);
+                                    if (!brand?.competitors?.length) {
+                                        alert('No competitors configured for this brand');
+                                        return;
+                                    }
+                                    const topCompetitor = brand.competitors[0]?.name;
+                                    try {
+                                        const insights = await window.puter.ai.chat(
+                                            `Briefly explain (3-4 bullet points) why "${topCompetitor}" might be recommended more often by AI assistants compared to "${brand.name}" in the ${brand.industry || 'software'} space. Focus on SEO, content strategy, and AI visibility factors.`,
+                                            { model: 'gpt-5.2' }
+                                        );
+                                        setCompetitorInsights(typeof insights === 'string' ? insights : insights.message?.content || JSON.stringify(insights));
+                                    } catch (err) {
+                                        console.error('Deep dive failed:', err);
+                                    }
+                                }}
+                                className="px-3 py-1.5 text-sm bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors flex items-center gap-1"
+                            >
+                                <span>🤖</span> Analyze
+                            </button>
+                        </div>
+                        <p className="text-sm text-[var(--text-muted)] mb-4">Understand why competitors might rank better in AI responses</p>
+                        {competitorInsights ? (
+                            <div className="p-4 rounded-xl bg-[var(--background)] border border-[var(--surface-light)] text-sm text-[var(--text)] whitespace-pre-wrap">
+                                {competitorInsights}
+                            </div>
+                        ) : (
+                            <div className="p-4 rounded-xl bg-[var(--background)] border border-dashed border-[var(--surface-light)] text-center text-[var(--text-muted)]">
+                                Click "Analyze" to get AI-powered insights on competitor advantages
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Alert & Schedule Settings */}
+                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-cyan-500/30">
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="text-xl">⚙️</span>
+                            <h3 className="text-lg font-semibold text-[var(--text)]">Alert & Schedule Settings</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Alert Threshold */}
+                            <div>
+                                <label className="block text-sm text-[var(--text-muted)] mb-2">Alert Threshold</label>
+                                <p className="text-xs text-[var(--text-muted)] mb-2">Get email when visibility drops below this score</p>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        placeholder="e.g. 50"
+                                        defaultValue={brands.find(b => b.id === selectedBrandId)?.alert_threshold || 0}
+                                        className="w-24 px-3 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)]"
+                                        id="alertThreshold"
+                                    />
+                                    <span className="text-[var(--text-muted)]">/ 100</span>
+                                </div>
+                            </div>
+                            {/* Schedule Frequency */}
+                            <div>
+                                <label className="block text-sm text-[var(--text-muted)] mb-2">Auto-Run Schedule</label>
+                                <p className="text-xs text-[var(--text-muted)] mb-2">Automatically run analysis on a schedule</p>
+                                <select
+                                    defaultValue={brands.find(b => b.id === selectedBrandId)?.schedule_frequency || 'disabled'}
+                                    className="px-3 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)]"
+                                    id="scheduleFrequency"
+                                >
+                                    <option value="disabled">Disabled</option>
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                const threshold = parseFloat(document.getElementById('alertThreshold').value) || 0;
+                                const frequency = document.getElementById('scheduleFrequency').value;
+                                try {
+                                    await api.updateAlertSettings(selectedBrandId, threshold, frequency);
+                                    alert('Settings saved!');
+                                } catch (err) {
+                                    console.error('Failed to save settings:', err);
+                                    alert('Failed to save settings');
+                                }
+                            }}
+                            className="mt-4 px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors"
+                        >
+                            💾 Save Settings
+                        </button>
                     </div>
 
 

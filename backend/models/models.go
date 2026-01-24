@@ -14,14 +14,17 @@ type User struct {
 
 // Brand represents a brand being tracked
 type Brand struct {
-	ID          int          `json:"id"`
-	UserID      int          `json:"user_id"`
-	Name        string       `json:"name"`
-	Industry    string       `json:"industry"`
-	Aliases     []BrandAlias `json:"aliases,omitempty"`
-	Competitors []Competitor `json:"competitors,omitempty"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
+	ID                int          `json:"id"`
+	UserID            int          `json:"user_id"`
+	Name              string       `json:"name"`
+	Industry          string       `json:"industry"`
+	AlertThreshold    float64      `json:"alert_threshold"`    // Score below which to send alert
+	ScheduleFrequency string       `json:"schedule_frequency"` // "disabled", "daily", "weekly"
+	LastScheduledRun  time.Time    `json:"last_scheduled_run"`
+	Aliases           []BrandAlias `json:"aliases,omitempty"`
+	Competitors       []Competitor `json:"competitors,omitempty"`
+	CreatedAt         time.Time    `json:"created_at"`
+	UpdatedAt         time.Time    `json:"updated_at"`
 }
 
 // BrandAlias represents an alternative name for a brand

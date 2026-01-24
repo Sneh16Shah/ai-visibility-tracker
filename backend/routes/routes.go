@@ -42,6 +42,7 @@ func Setup(router *gin.Engine) {
 			brands.GET("/:id/aliases", controllers.GetAliases)
 			brands.POST("/:id/aliases", controllers.AddAlias)
 			brands.DELETE("/:id/aliases/:aliasId", controllers.RemoveAlias)
+			brands.PUT("/:id/alerts", controllers.UpdateAlertSettings)
 		}
 
 		// Prompt routes
@@ -49,6 +50,7 @@ func Setup(router *gin.Engine) {
 		{
 			prompts.GET("", controllers.GetPrompts)
 			prompts.POST("", controllers.CreatePrompt)
+			prompts.PUT("/:id", controllers.UpdatePrompt)
 			prompts.DELETE("/:id", controllers.DeletePrompt)
 		}
 
@@ -66,6 +68,12 @@ func Setup(router *gin.Engine) {
 		{
 			metrics.GET("", controllers.GetMetrics)
 			metrics.GET("/dashboard", controllers.GetDashboardData)
+		}
+
+		// Export routes
+		export := api.Group("/export")
+		{
+			export.GET("/csv", controllers.ExportCSV)
 		}
 	}
 }

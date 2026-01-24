@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Sneh16Shah/ai-visibility-tracker/db"
@@ -278,6 +280,39 @@ func RemoveAlias(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Alias removed successfully"})
 }
 
+// UpdateAlertSettings updates alert threshold and schedule frequency for a brand
+func UpdateAlertSettings(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid brand ID"})
+		return
+	}
+
+	var req struct {
+		AlertThreshold    float64 `json:"alert_threshold"`
+		ScheduleFrequency string  `json:"schedule_frequency"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	// Validate schedule frequency
+	validFrequencies := map[string]bool{"disabled": true, "daily": true, "weekly": true}
+	if !validFrequencies[req.ScheduleFrequency] {
+		req.ScheduleFrequency = "disabled"
+	}
+
+	repo := db.NewBrandRepository()
+	if err := repo.UpdateAlertSettings(id, req.AlertThreshold, req.ScheduleFrequency); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update settings", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Alert settings updated successfully"})
+}
+
 // ============================================
 // Prompt Controllers
 // ============================================
@@ -336,6 +371,35 @@ func DeletePrompt(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Prompt deleted"})
+}
+
+// UpdatePrompt updates an existing prompt
+func UpdatePrompt(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid prompt ID"})
+		return
+	}
+
+	var req struct {
+		Category    string `json:"category"`
+		Template    string `json:"template"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	repo := db.NewPromptRepository()
+	prompt, err := repo.Update(id, req.Category, req.Template, req.Description)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update prompt", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, prompt)
 }
 
 // ============================================
@@ -523,4 +587,62 @@ func getDemoData() models.DashboardData {
 		CitationBreakdown: []models.CitationBreakdown{},
 		CompetitorData:    []models.CompetitorMetrics{},
 	}
+}
+
+// ============================================
+// Export Controllers
+// ============================================
+
+// ExportCSV exports metrics data as CSV
+func ExportCSV(c *gin.Context) {
+	brandIDStr := c.Query("brand_id")
+	if brandIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "brand_id is required"})
+		return
+	}
+
+	brandID, err := strconv.Atoi(brandIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid brand_id"})
+		return
+	}
+
+	// Get brand info
+	brandRepo := db.NewBrandRepository()
+	brand, err := brandRepo.GetByID(brandID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Brand not found"})
+		return
+	}
+
+	// Get metrics history (up to 365 days)
+	metricsRepo := db.NewMetricRepository()
+	snapshots, err := metricsRepo.GetTrendsByBrandID(brandID, 365)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get metrics"})
+		return
+	}
+
+	// Build CSV
+	var csvContent strings.Builder
+	csvContent.WriteString("Date,Visibility Score,Citation Share,Total Mentions,Positive,Neutral,Negative\n")
+
+	for _, s := range snapshots {
+		line := fmt.Sprintf("%s,%.1f,%.1f,%d,%d,%d,%d\n",
+			s.CreatedAt.Format("2006-01-02 15:04"),
+			s.VisibilityScore,
+			s.CitationShare,
+			s.MentionCount,
+			s.PositiveCount,
+			s.NeutralCount,
+			s.NegativeCount,
+		)
+		csvContent.WriteString(line)
+	}
+
+	// Set headers for CSV download
+	filename := fmt.Sprintf("%s_visibility_report_%s.csv", brand.Name, time.Now().Format("2006-01-02"))
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.String(http.StatusOK, csvContent.String())
 }
