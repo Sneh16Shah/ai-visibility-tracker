@@ -62,9 +62,9 @@ func (r *BrandRepository) Create(userID int, req models.CreateBrandRequest) (*mo
 func (r *BrandRepository) GetByID(id int) (*models.Brand, error) {
 	brand := &models.Brand{}
 	err := r.db.QueryRow(
-		"SELECT id, user_id, name, industry, created_at, updated_at FROM brands WHERE id = ?",
+		"SELECT id, user_id, name, industry, COALESCE(alert_threshold, 0), COALESCE(schedule_frequency, 'disabled'), created_at, updated_at FROM brands WHERE id = ?",
 		id,
-	).Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.CreatedAt, &brand.UpdatedAt)
+	).Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.AlertThreshold, &brand.ScheduleFrequency, &brand.CreatedAt, &brand.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (r *BrandRepository) GetByID(id int) (*models.Brand, error) {
 // GetAll retrieves all brands for a user
 func (r *BrandRepository) GetAll(userID int) ([]models.Brand, error) {
 	rows, err := r.db.Query(
-		"SELECT id, user_id, name, industry, created_at, updated_at FROM brands WHERE user_id = ?",
+		"SELECT id, user_id, name, industry, COALESCE(alert_threshold, 0), COALESCE(schedule_frequency, 'disabled'), created_at, updated_at FROM brands WHERE user_id = ?",
 		userID,
 	)
 	if err != nil {
@@ -116,7 +116,7 @@ func (r *BrandRepository) GetAll(userID int) ([]models.Brand, error) {
 	var brands []models.Brand
 	for rows.Next() {
 		var brand models.Brand
-		if err := rows.Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.CreatedAt, &brand.UpdatedAt); err != nil {
+		if err := rows.Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.AlertThreshold, &brand.ScheduleFrequency, &brand.CreatedAt, &brand.UpdatedAt); err != nil {
 			return nil, err
 		}
 
@@ -344,4 +344,30 @@ func (r *BrandRepository) GetCompetitors(brandID int) ([]models.Competitor, erro
 		competitors = append(competitors, comp)
 	}
 	return competitors, nil
+}
+
+// SaveInsights saves competitor insights for a brand
+func (r *BrandRepository) SaveInsights(brandID int, insights string) error {
+	_, err := r.db.Exec(
+		"UPDATE brands SET competitor_insights = ?, competitor_insights_updated_at = NOW() WHERE id = ?",
+		insights, brandID,
+	)
+	return err
+}
+
+// GetInsights retrieves competitor insights for a brand
+func (r *BrandRepository) GetInsights(brandID int) (string, *time.Time, error) {
+	var insights sql.NullString
+	var updatedAt sql.NullTime
+	err := r.db.QueryRow(
+		"SELECT competitor_insights, competitor_insights_updated_at FROM brands WHERE id = ?",
+		brandID,
+	).Scan(&insights, &updatedAt)
+	if err != nil {
+		return "", nil, err
+	}
+	if updatedAt.Valid {
+		return insights.String, &updatedAt.Time, nil
+	}
+	return insights.String, nil, nil
 }

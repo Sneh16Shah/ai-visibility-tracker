@@ -35,45 +35,41 @@ export default function Login() {
             <div className="w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                    <h1 className="text-3xl font-bold text-gradient">
                         AI Visibility Tracker
                     </h1>
                     <p className="text-[var(--text-muted)] mt-2">Sign in to your account</p>
                 </div>
 
                 {/* Login Form */}
-                <div className="bg-[var(--surface)] rounded-2xl p-8 border border-[var(--surface-light)]">
+                <div className="card">
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {error && (
-                            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                            <div className="alert alert-error text-sm">
                                 {error}
                             </div>
                         )}
 
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">
-                                Email
-                            </label>
+                            <label className="label">Email</label>
                             <input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
-                                className="w-full px-4 py-3 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition-colors"
+                                className="input"
                                 placeholder="you@example.com"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">
-                                Password
-                            </label>
+                            <label className="label">Password</label>
                             <input
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
-                                className="w-full px-4 py-3 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition-colors"
+                                className="input"
                                 placeholder="••••••••"
                             />
                         </div>
@@ -81,7 +77,7 @@ export default function Login() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
+                            className="btn btn-primary w-full py-3"
                         >
                             {loading ? 'Signing in...' : 'Sign In'}
                         </button>

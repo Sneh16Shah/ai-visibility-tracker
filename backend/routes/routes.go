@@ -43,6 +43,10 @@ func Setup(router *gin.Engine) {
 			brands.POST("/:id/aliases", controllers.AddAlias)
 			brands.DELETE("/:id/aliases/:aliasId", controllers.RemoveAlias)
 			brands.PUT("/:id/alerts", controllers.UpdateAlertSettings)
+
+			// Insights routes (competitor deep dive)
+			brands.GET("/:id/insights", controllers.GetInsights)
+			brands.PUT("/:id/insights", controllers.SaveInsights)
 		}
 
 		// Prompt routes

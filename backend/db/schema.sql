@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS brands (
     alert_threshold DECIMAL(5,2) DEFAULT 0,
     schedule_frequency VARCHAR(20) DEFAULT 'disabled',
     last_scheduled_run TIMESTAMP NULL,
+    competitor_insights TEXT,
+    competitor_insights_updated_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

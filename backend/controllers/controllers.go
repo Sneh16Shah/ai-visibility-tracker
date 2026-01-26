@@ -314,6 +314,54 @@ func UpdateAlertSettings(c *gin.Context) {
 }
 
 // ============================================
+// Insights Controllers
+// ============================================
+
+// GetInsights returns saved competitor insights for a brand
+func GetInsights(c *gin.Context) {
+	brandID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid brand ID"})
+		return
+	}
+
+	repo := db.NewBrandRepository()
+	insights, updatedAt, err := repo.GetInsights(brandID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Brand not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"insights":   insights,
+		"updated_at": updatedAt,
+	})
+}
+
+// SaveInsights saves competitor insights for a brand
+func SaveInsights(c *gin.Context) {
+	brandID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid brand ID"})
+		return
+	}
+
+	var req models.UpdateInsightsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	repo := db.NewBrandRepository()
+	if err := repo.SaveInsights(brandID, req.Insights); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save insights", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Insights saved successfully"})
+}
+
+// ============================================
 // Prompt Controllers
 // ============================================
 

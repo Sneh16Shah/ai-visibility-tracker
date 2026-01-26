@@ -14,17 +14,19 @@ type User struct {
 
 // Brand represents a brand being tracked
 type Brand struct {
-	ID                int          `json:"id"`
-	UserID            int          `json:"user_id"`
-	Name              string       `json:"name"`
-	Industry          string       `json:"industry"`
-	AlertThreshold    float64      `json:"alert_threshold"`    // Score below which to send alert
-	ScheduleFrequency string       `json:"schedule_frequency"` // "disabled", "daily", "weekly"
-	LastScheduledRun  time.Time    `json:"last_scheduled_run"`
-	Aliases           []BrandAlias `json:"aliases,omitempty"`
-	Competitors       []Competitor `json:"competitors,omitempty"`
-	CreatedAt         time.Time    `json:"created_at"`
-	UpdatedAt         time.Time    `json:"updated_at"`
+	ID                          int          `json:"id"`
+	UserID                      int          `json:"user_id"`
+	Name                        string       `json:"name"`
+	Industry                    string       `json:"industry"`
+	AlertThreshold              float64      `json:"alert_threshold"`    // Score below which to send alert
+	ScheduleFrequency           string       `json:"schedule_frequency"` // "disabled", "daily", "weekly"
+	LastScheduledRun            time.Time    `json:"last_scheduled_run"`
+	CompetitorInsights          string       `json:"competitor_insights,omitempty"`
+	CompetitorInsightsUpdatedAt *time.Time   `json:"competitor_insights_updated_at,omitempty"`
+	Aliases                     []BrandAlias `json:"aliases,omitempty"`
+	Competitors                 []Competitor `json:"competitors,omitempty"`
+	CreatedAt                   time.Time    `json:"created_at"`
+	UpdatedAt                   time.Time    `json:"updated_at"`
 }
 
 // BrandAlias represents an alternative name for a brand
@@ -119,6 +121,11 @@ type AddCompetitorRequest struct {
 	Name string `json:"name" binding:"required"`
 }
 
+// UpdateInsightsRequest is the request body for saving competitor insights
+type UpdateInsightsRequest struct {
+	Insights string `json:"insights" binding:"required"`
+}
+
 // RunAnalysisRequest is the request body for running analysis
 type RunAnalysisRequest struct {
 	BrandID   int   `json:"brand_id" binding:"required"`
@@ -134,6 +141,7 @@ type DashboardData struct {
 	Trends            []MetricSnapshot    `json:"trends"`
 	CitationBreakdown []CitationBreakdown `json:"citation_breakdown"`
 	CompetitorData    []CompetitorMetrics `json:"competitor_data"`
+	ModelVisibility   []ModelVisibility   `json:"model_visibility"`
 }
 
 // CitationBreakdown represents citation share by entity
@@ -150,4 +158,13 @@ type CompetitorMetrics struct {
 	Positive int    `json:"positive"`
 	Neutral  int    `json:"neutral"`
 	Negative int    `json:"negative"`
+}
+
+// ModelVisibility represents visibility score for a specific AI model
+type ModelVisibility struct {
+	Model    string  `json:"model"`
+	ModelID  string  `json:"modelId"`
+	Color    string  `json:"color"`
+	Score    float64 `json:"score"`
+	Mentions int     `json:"mentions"`
 }

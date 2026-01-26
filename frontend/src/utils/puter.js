@@ -1,12 +1,12 @@
 // Puter.js utility wrapper for Multi-AI Comparison
 // Provides access to GPT, Claude, Gemini, Llama without API keys
 
-// Available models for comparison (2026 latest)
+// Available models for comparison (2026 latest - from Puter.js)
 // Use puter.ai.listModels() to get full list
 export const AI_MODELS = [
-    { id: 'gpt-5.2', name: 'GPT-5.2', provider: 'OpenAI', color: '#10a37f' },
-    { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', color: '#d4a574' },
-    { id: 'gemini-3-pro', name: 'Gemini 3 Pro', provider: 'Google', color: '#4285f4' },
+    { id: 'gpt-5', name: 'GPT-5', provider: 'OpenAI', color: '#10a37f' },
+    { id: 'claude-opus-4-1', name: 'Claude Opus 4.1', provider: 'Anthropic', color: '#d4a574' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', color: '#4285f4' },
     { id: 'llama-4-maverick', name: 'Llama 4 Maverick', provider: 'Meta', color: '#0668e1' },
 ]
 
@@ -30,11 +30,22 @@ export async function queryModel(prompt, modelId) {
             timestamp: new Date().toISOString()
         }
     } catch (error) {
+        const errorMsg = error.message || error.toString() || 'Unknown error'
         console.error(`Error querying ${modelId}:`, error)
+
+        // Detect balance/credit issues
+        const isBalanceError = errorMsg.toLowerCase().includes('balance') ||
+            errorMsg.toLowerCase().includes('credit') ||
+            errorMsg.toLowerCase().includes('funding') ||
+            errorMsg.toLowerCase().includes('upgrade')
+
         return {
             success: false,
             model: modelId,
-            error: error.message || 'Unknown error',
+            error: isBalanceError
+                ? 'Puter credits exhausted. Try disabling Compare Mode to use backend API.'
+                : errorMsg,
+            isBalanceError,
             timestamp: new Date().toISOString()
         }
     }
@@ -60,17 +71,35 @@ export async function queryMultipleModels(prompt, modelIds = AI_MODELS.map(m => 
 
 // Extract brand mentions from AI response
 export function extractMentions(responseText, brandName, aliases = [], competitors = []) {
+    // DEBUG: Log all inputs to identify toLowerCase issue
+    console.log('[extractMentions] DEBUG - Inputs:', {
+        responseText: typeof responseText,
+        brandName: typeof brandName,
+        brandNameValue: brandName,
+        aliases: aliases,
+        aliasTypes: aliases.map(a => ({ value: a, type: typeof a })),
+        competitors: competitors,
+        competitorTypes: competitors.map(c => ({ value: c, type: typeof c }))
+    })
+
     const mentions = []
-    const textLower = responseText.toLowerCase()
+
+    // Defensive: ensure responseText is a string
+    const text = typeof responseText === 'string' ? responseText : String(responseText || '')
+    const textLower = text.toLowerCase()
+
+    // Defensive: ensure brandName is a string
+    const brand = typeof brandName === 'string' ? brandName : String(brandName || '')
 
     // Check for brand mentions
-    const brandTerms = [brandName, ...aliases].filter(Boolean)
+    const brandTerms = [brand, ...aliases].filter(Boolean).map(t => typeof t === 'string' ? t : (t?.alias || t?.name || String(t)))
     for (const term of brandTerms) {
+        if (!term) continue
         if (textLower.includes(term.toLowerCase())) {
             mentions.push({
-                entityName: brandName,
+                entityName: brand,
                 entityType: 'brand',
-                sentiment: guessSentiment(responseText, term),
+                sentiment: guessSentiment(text, term),
                 found: true
             })
             break
@@ -79,11 +108,15 @@ export function extractMentions(responseText, brandName, aliases = [], competito
 
     // Check for competitor mentions
     for (const competitor of competitors) {
-        if (textLower.includes(competitor.name?.toLowerCase() || competitor.toLowerCase())) {
+        // Safely get competitor name as string
+        const competitorName = typeof competitor === 'string' ? competitor : (competitor?.name || '')
+        if (!competitorName) continue
+
+        if (textLower.includes(competitorName.toLowerCase())) {
             mentions.push({
-                entityName: competitor.name || competitor,
+                entityName: competitorName,
                 entityType: 'competitor',
-                sentiment: guessSentiment(responseText, competitor.name || competitor),
+                sentiment: guessSentiment(text, competitorName),
                 found: true
             })
         }
@@ -94,15 +127,19 @@ export function extractMentions(responseText, brandName, aliases = [], competito
 
 // Simple sentiment guess based on context
 function guessSentiment(text, term) {
-    const textLower = text.toLowerCase()
-    const termLower = term.toLowerCase()
+    // Defensive: ensure text and term are strings
+    const safeText = typeof text === 'string' ? text : String(text || '')
+    const safeTerm = typeof term === 'string' ? term : String(term || '')
+
+    const textLower = safeText.toLowerCase()
+    const termLower = safeTerm.toLowerCase()
     const termIndex = textLower.indexOf(termLower)
 
     if (termIndex === -1) return 'neutral'
 
     // Get surrounding context (100 chars before and after)
     const start = Math.max(0, termIndex - 100)
-    const end = Math.min(text.length, termIndex + term.length + 100)
+    const end = Math.min(safeText.length, termIndex + safeTerm.length + 100)
     const context = textLower.slice(start, end)
 
     const positiveWords = ['best', 'great', 'excellent', 'recommend', 'top', 'leading', 'popular', 'favorite', 'trusted', 'reliable']

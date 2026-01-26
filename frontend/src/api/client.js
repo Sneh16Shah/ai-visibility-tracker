@@ -129,6 +129,19 @@ export async function updateAlertSettings(id, alertThreshold, scheduleFrequency)
     });
 }
 
+// Get saved competitor insights for a brand
+export async function getInsights(brandId) {
+    return apiCall(`/brands/${brandId}/insights`);
+}
+
+// Save competitor insights for a brand
+export async function saveInsights(brandId, insights) {
+    return apiCall(`/brands/${brandId}/insights`, {
+        method: 'PUT',
+        body: JSON.stringify({ insights }),
+    });
+}
+
 // ============================================
 // Competitor APIs
 // ============================================

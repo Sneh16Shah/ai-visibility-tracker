@@ -142,6 +142,9 @@ func (m *MetricsCalculator) GetDashboardMetrics(brandID int) (*models.DashboardD
 	// Calculate competitor comparison
 	competitorData := m.calculateCompetitorMetrics(brandID, brand)
 
+	// Calculate per-model visibility
+	modelVisibility := m.calculateModelVisibility(brandID)
+
 	// Calculate sentiment score (1-5 scale)
 	sentimentScore := m.calculateSentimentScore(latest.PositiveCount, latest.NeutralCount, latest.NegativeCount)
 
@@ -153,6 +156,7 @@ func (m *MetricsCalculator) GetDashboardMetrics(brandID int) (*models.DashboardD
 		Trends:            trends,
 		CitationBreakdown: citationBreakdown,
 		CompetitorData:    competitorData,
+		ModelVisibility:   modelVisibility,
 	}, nil
 }
 
@@ -216,6 +220,121 @@ func (m *MetricsCalculator) calculateCompetitorMetrics(brandID int, brand *model
 	return metrics
 }
 
+// Model color mapping for known AI models
+var modelColors = map[string]string{
+	"gpt-4":            "#10a37f",
+	"gpt-4-turbo":      "#10a37f",
+	"gpt-5":            "#10a37f",
+	"claude-3":         "#d4a574",
+	"claude-opus-4-1":  "#d4a574",
+	"gemini-pro":       "#4285f4",
+	"gemini-2.5-pro":   "#4285f4",
+	"llama-3":          "#0668e1",
+	"llama-4-maverick": "#0668e1",
+}
+
+// calculateModelVisibility calculates visibility scores per AI model
+func (m *MetricsCalculator) calculateModelVisibility(brandID int) []models.ModelVisibility {
+	responseRepo := db.NewAIResponseRepository()
+	mentionRepo := db.NewMentionRepository()
+
+	// Get all responses for this brand
+	responses, err := responseRepo.GetByBrandID(brandID)
+	if err != nil || len(responses) == 0 {
+		return []models.ModelVisibility{}
+	}
+
+	// Group responses by model and calculate scores
+	type modelData struct {
+		mentions     int
+		brandFound   int
+		positive     int
+		negative     int
+		totalQueries int
+	}
+	modelStats := make(map[string]*modelData)
+
+	for _, resp := range responses {
+		modelName := resp.ModelName
+		if modelName == "" {
+			modelName = "Unknown"
+		}
+
+		if modelStats[modelName] == nil {
+			modelStats[modelName] = &modelData{}
+		}
+		modelStats[modelName].totalQueries++
+
+		// Get mentions for this response
+		mentions, err := mentionRepo.GetByResponseID(resp.ID)
+		if err != nil {
+			continue
+		}
+
+		for _, mention := range mentions {
+			if mention.EntityType == "brand" {
+				modelStats[modelName].brandFound++
+				modelStats[modelName].mentions++
+				switch mention.Sentiment {
+				case "positive":
+					modelStats[modelName].positive++
+				case "negative":
+					modelStats[modelName].negative++
+				}
+			}
+		}
+	}
+	
+	// Convert to ModelVisibility slice
+	var result []models.ModelVisibility
+	for modelName, stats := range modelStats {
+		if stats.totalQueries == 0 {
+			continue
+		}
+
+		// Calculate score: base 50 for being found + sentiment bonus + citation share
+		var score float64
+		if stats.brandFound > 0 {
+			// Base score for brand being mentioned
+			mentionRate := float64(stats.brandFound) / float64(stats.totalQueries)
+			score = mentionRate * 50
+
+			// Sentiment bonus (up to 25 points)
+			totalSentiment := stats.positive + stats.negative
+			if totalSentiment > 0 {
+				sentimentRatio := float64(stats.positive-stats.negative) / float64(totalSentiment)
+				score += 25 + (sentimentRatio * 25)
+			} else {
+				score += 25 // Neutral
+			}
+		}
+
+		// Get color for this model
+		color := "#888888" // Default gray
+		for key, c := range modelColors {
+			if modelName == key || contains(modelName, key) {
+				color = c
+				break
+			}
+		}
+
+		result = append(result, models.ModelVisibility{
+			Model:    modelName,
+			ModelID:  modelName,
+			Color:    color,
+			Score:    score,
+			Mentions: stats.mentions,
+		})
+	}
+
+	return result
+}
+
+// contains checks if s contains substr (case insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && len(substr) > 0)
+}
+
 // getEmptyDashboardData returns empty dashboard data
 func (m *MetricsCalculator) getEmptyDashboardData() *models.DashboardData {
 	return &models.DashboardData{
@@ -226,5 +345,6 @@ func (m *MetricsCalculator) getEmptyDashboardData() *models.DashboardData {
 		Trends:            []models.MetricSnapshot{},
 		CitationBreakdown: []models.CitationBreakdown{},
 		CompetitorData:    []models.CompetitorMetrics{},
+		ModelVisibility:   []models.ModelVisibility{},
 	}
 }

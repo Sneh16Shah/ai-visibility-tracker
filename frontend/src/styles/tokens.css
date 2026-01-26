@@ -1,0 +1,96 @@
+/* ===========================================
+   Design Tokens - AI Visibility Tracker
+   =========================================== */
+
+:root {
+  /* ===== Base Colors ===== */
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --primary-light: #818cf8;
+  --secondary: #10b981;
+  --background: #0f172a;
+  --surface: #1e293b;
+  --surface-light: #334155;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+
+  /* ===== Status Colors ===== */
+  --success: #10b981;
+  --success-light: #34d399;
+  --warning: #f59e0b;
+  --warning-light: #fbbf24;
+  --error: #ef4444;
+  --error-light: #f87171;
+  --info: #3b82f6;
+
+  /* ===== Gradients ===== */
+  --gradient-primary: linear-gradient(to right, #6366f1, #9333ea);
+  --gradient-primary-hover: linear-gradient(to right, #4f46e5, #7e22ce);
+  --gradient-compare: linear-gradient(to right, #a855f7, #ec4899);
+  --gradient-compare-hover: linear-gradient(to right, #9333ea, #db2777);
+  --gradient-logo: linear-gradient(to bottom right, #6366f1, #9333ea);
+  --gradient-text: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
+
+  /* ===== Shadows ===== */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-primary: 0 10px 15px -3px rgb(99 102 241 / 0.25);
+  --shadow-purple: 0 10px 15px -3px rgb(168 85 247 / 0.25);
+
+  /* ===== Border Radius ===== */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* ===== Spacing ===== */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* ===== Transitions ===== */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* ===== Z-Index ===== */
+  --z-dropdown: 40;
+  --z-sticky: 50;
+  --z-modal: 100;
+}
+
+/* ===== Light Theme ===== */
+[data-theme="light"] {
+  /* Base Colors */
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-light: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+
+  /* Primary Colors (slightly adjusted for light bg) */
+  --primary: #4f46e5;
+  --primary-dark: #4338ca;
+  --primary-light: #6366f1;
+
+  /* Status Colors */
+  --success: #059669;
+  --success-light: #10b981;
+  --warning: #d97706;
+  --warning-light: #f59e0b;
+  --error: #dc2626;
+  --error-light: #ef4444;
+  --info: #2563eb;
+
+  /* Shadows (more visible on light bg) */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-primary: 0 10px 15px -3px rgb(79 70 229 / 0.2);
+}

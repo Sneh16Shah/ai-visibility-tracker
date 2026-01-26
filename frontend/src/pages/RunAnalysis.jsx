@@ -42,10 +42,13 @@ export default function RunAnalysis() {
     const [brands, setBrands] = useState([])
     const [selectedBrandId, setSelectedBrandId] = useState(null)
 
-    // Compare Mode (Multi-AI)
+    // Compare Mode (Multi-AI) - DEFAULT OFF to avoid Puter credit issues
     const [compareMode, setCompareMode] = useState(false)
-    const [selectedModels, setSelectedModels] = useState(['gpt-5.2', 'claude-sonnet-4.5', 'gemini-3-pro', 'llama-4-maverick'])
+    const [selectedModels, setSelectedModels] = useState(['gpt-5', 'claude-opus-4-1', 'gemini-2.5-pro', 'llama-4-maverick'])
     const [compareResults, setCompareResults] = useState([])
+
+    // Expand/collapse state for results
+    const [expandedResults, setExpandedResults] = useState({})
 
     // Ref to prevent double-clicks and React re-render issues
     const isRunningRef = useRef(false)
@@ -271,6 +274,26 @@ export default function RunAnalysis() {
             setProgress(100)
             setShowCompletionModal(true)
 
+            // Save per-model scores to localStorage for Dashboard
+            const modelScores = {}
+            allModelResults.forEach(r => {
+                if (!modelScores[r.model]) {
+                    modelScores[r.model] = { total: 0, count: 0, color: r.color, modelId: r.modelId }
+                }
+                modelScores[r.model].total += r.score
+                modelScores[r.model].count++
+            })
+            const scoreSummary = Object.entries(modelScores).map(([model, data]) => ({
+                model,
+                modelId: data.modelId,
+                color: data.color,
+                score: Math.round(data.total / data.count)
+            }))
+            // Store with brand ID so each brand has its own compare data
+            const stored = JSON.parse(localStorage.getItem('compareModelScores') || '{}')
+            stored[brand.id] = { scores: scoreSummary, timestamp: new Date().toISOString() }
+            localStorage.setItem('compareModelScores', JSON.stringify(stored))
+
         } catch (err) {
             console.error('Compare analysis failed:', err)
             setError(err.message || 'Comparison failed')
@@ -429,7 +452,7 @@ export default function RunAnalysis() {
                     <select
                         value={selectedBrandId || ''}
                         onChange={(e) => setSelectedBrandId(Number(e.target.value))}
-                        className="px-4 py-2 bg-[var(--surface)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)]"
+                        className="select"
                     >
                         {brands.length === 0 ? (
                             <option value="">No brands - add one first</option>
@@ -445,12 +468,12 @@ export default function RunAnalysis() {
                     <button
                         onClick={compareMode ? runCompareAnalysis : runAnalysis}
                         disabled={!canRun || (compareMode && selectedModels.length === 0)}
-                        className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${(!canRun || (compareMode && selectedModels.length === 0))
-                            ? 'bg-[var(--surface-light)] text-[var(--text-muted)] cursor-not-allowed'
+                        className={`btn ${(!canRun || (compareMode && selectedModels.length === 0))
+                            ? 'btn-secondary opacity-50 cursor-not-allowed'
                             : compareMode
-                                ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg shadow-purple-500/25'
-                                : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25'
-                            }`}
+                                ? 'btn-compare'
+                                : 'btn-primary'
+                            } px-6 py-3`}
                     >
                         {isRunning ? (
                             <>
@@ -474,7 +497,7 @@ export default function RunAnalysis() {
                     {isRunning && (
                         <button
                             onClick={cancelAnalysis}
-                            className="px-4 py-3 rounded-lg font-medium border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-all duration-200 flex items-center gap-2"
+                            className="btn px-4 py-3 border border-[var(--error)]/50 text-[var(--error)] hover:bg-[var(--error)]/10"
                         >
                             <span>✕</span>
                             <span>Cancel</span>
@@ -485,24 +508,22 @@ export default function RunAnalysis() {
 
             {/* Error Message */}
             {error && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
-                    <div className="flex items-center gap-2">
-                        <span>⚠️</span>
-                        <span>{error}</span>
-                    </div>
+                <div className="alert alert-error">
+                    <span>⚠️</span>
+                    <span>{error}</span>
                 </div>
             )}
 
             {/* Progress Bar */}
             {isRunning && (
-                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
+                <div className="card">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-[var(--text)]">Processing prompts...</span>
                         <span className="text-sm text-[var(--text-muted)]">{progress}%</span>
                     </div>
-                    <div className="w-full bg-[var(--surface-light)] rounded-full h-3 overflow-hidden">
+                    <div className="progress-track h-3">
                         <div
-                            className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full rounded-full transition-all duration-300"
+                            className="progress-bar"
                             style={{ width: `${progress}%` }}
                         />
                     </div>
@@ -511,7 +532,7 @@ export default function RunAnalysis() {
 
             {/* AI Model Selection (Compare Mode) */}
             {compareMode && (
-                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-purple-500/30">
+                <div className="card card-accent-purple">
                     <h3 className="text-lg font-semibold text-[var(--text)] mb-4 flex items-center gap-2">
                         <span>🤖</span> Select AI Models to Compare
                     </h3>
@@ -528,9 +549,9 @@ export default function RunAnalysis() {
                                             setSelectedModels(prev => [...prev, model.id])
                                         }
                                     }}
-                                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${isSelected
+                                    className={`btn ${isSelected
                                         ? 'text-white shadow-lg'
-                                        : 'bg-[var(--surface-light)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                                        : 'btn-secondary'
                                         }`}
                                     style={{
                                         backgroundColor: isSelected ? model.color : undefined,
@@ -544,16 +565,16 @@ export default function RunAnalysis() {
                         })}
                     </div>
                     {selectedModels.length === 0 && (
-                        <p className="text-amber-400 text-sm mt-3">⚠️ Select at least one model to run comparison</p>
+                        <p className="text-[var(--warning)] text-sm mt-3">⚠️ Select at least one model to run comparison</p>
                     )}
                     {!isPuterAvailable() && (
-                        <p className="text-amber-400 text-sm mt-3">⚠️ Puter.js not loaded. Please refresh the page.</p>
+                        <p className="text-[var(--warning)] text-sm mt-3">⚠️ Puter.js not loaded. Please refresh the page.</p>
                     )}
                 </div>
             )}
 
             {/* Prompt Templates */}
-            <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
+            <div className="card">
                 <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Prompt Templates</h3>
                 <div className="space-y-3">
                     {templates.map((template) => (
@@ -721,7 +742,7 @@ export default function RunAnalysis() {
 
             {/* Compare Results (Multi-Model) */}
             {compareMode && compareResults.length > 0 && (
-                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-purple-500/30">
+                <div className="card card-accent-purple">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-lg font-semibold text-[var(--text)] flex items-center gap-2">
                             <span>📊</span> Model Comparison Results
@@ -799,11 +820,37 @@ export default function RunAnalysis() {
                                     <p className="text-red-400 text-sm">Error: {result.error}</p>
                                 ) : (
                                     <>
-                                        <p className="text-sm text-[var(--text)] line-clamp-3 mb-2">
-                                            {result.response?.slice(0, 200)}...
-                                        </p>
+                                        {/* Expand/Collapse Toggle */}
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setExpandedResults(prev => ({ ...prev, [result.id]: !prev[result.id] }))}
+                                                className="text-xs text-[var(--primary)] hover:underline mb-2 flex items-center gap-1"
+                                            >
+                                                {expandedResults[result.id] ? '🔽 Collapse Response' : '🔼 Expand Full Response'}
+                                            </button>
+                                            <div className={`text-sm text-[var(--text)] ${expandedResults[result.id] ? 'max-h-96 overflow-y-auto' : 'max-h-20 overflow-hidden'} transition-all duration-200 bg-[var(--surface)] p-3 rounded-lg`}>
+                                                {expandedResults[result.id] ? (
+                                                    // Full formatted response
+                                                    <div className="space-y-2">
+                                                        {result.response?.split('\n').map((line, li) => {
+                                                            if (line.startsWith('###') || line.startsWith('**')) {
+                                                                return <p key={li} className="font-bold text-[var(--primary)]">{line.replace(/[#*]/g, '').trim()}</p>;
+                                                            } else if (line.startsWith('- ') || line.startsWith('* ')) {
+                                                                return <p key={li} className="pl-3">• {line.replace(/^[-*]\s*/, '')}</p>;
+                                                            } else if (line.trim()) {
+                                                                return <p key={li}>{line}</p>;
+                                                            }
+                                                            return null;
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    // Preview
+                                                    <p className="line-clamp-2">{result.response?.slice(0, 150)}...</p>
+                                                )}
+                                            </div>
+                                        </div>
                                         {result.mentions?.length > 0 && (
-                                            <div className="flex flex-wrap gap-1">
+                                            <div className="flex flex-wrap gap-1 mt-2">
                                                 {result.mentions.map((m, i) => (
                                                     <span
                                                         key={i}
@@ -827,7 +874,7 @@ export default function RunAnalysis() {
 
             {/* Results */}
             {results.length > 0 && (
-                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
+                <div className="card">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-[var(--text)]">Analysis Results</h3>
                         <span className="text-sm text-[var(--text-muted)]">{results.length} responses analyzed</span>
@@ -848,11 +895,35 @@ export default function RunAnalysis() {
                                     </div>
                                 </div>
 
-                                {/* AI Response */}
+                                {/* AI Response with Expand/Collapse */}
                                 {result.response && (
-                                    <div className="mb-3 p-3 rounded-lg bg-[var(--surface)] text-sm text-[var(--text-muted)]">
-                                        {result.response.substring(0, 300)}
-                                        {result.response.length > 300 && '...'}
+                                    <div className="mb-3">
+                                        <button
+                                            onClick={() => setExpandedResults(prev => ({ ...prev, [`reg-${result.id}`]: !prev[`reg-${result.id}`] }))}
+                                            className="text-xs text-[var(--primary)] hover:underline mb-2 flex items-center gap-1"
+                                        >
+                                            {expandedResults[`reg-${result.id}`] ? '🔽 Collapse Response' : '🔼 Expand Full Response'}
+                                        </button>
+                                        <div className={`p-3 rounded-lg bg-[var(--surface)] text-sm text-[var(--text)] ${expandedResults[`reg-${result.id}`] ? 'max-h-[500px] overflow-y-auto' : 'max-h-24 overflow-hidden'} transition-all duration-200`}>
+                                            {expandedResults[`reg-${result.id}`] ? (
+                                                // Full formatted response
+                                                <div className="space-y-2">
+                                                    {result.response.split('\n').map((line, li) => {
+                                                        if (line.startsWith('###') || line.startsWith('**')) {
+                                                            return <p key={li} className="font-bold text-[var(--primary)]">{line.replace(/[#*]/g, '').trim()}</p>;
+                                                        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+                                                            return <p key={li} className="pl-3">• {line.replace(/^[-*]\s*/, '')}</p>;
+                                                        } else if (line.trim()) {
+                                                            return <p key={li}>{line}</p>;
+                                                        }
+                                                        return null;
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                // Preview
+                                                <p className="line-clamp-3">{result.response.substring(0, 200)}...</p>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
@@ -882,8 +953,8 @@ export default function RunAnalysis() {
 
             {/* Completion Modal */}
             {showCompletionModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-[var(--surface)] rounded-2xl p-8 border border-[var(--surface-light)] max-w-md mx-4 text-center">
+                <div className="modal-overlay">
+                    <div className="modal-content modal-content-primary text-center">
                         <div className="text-6xl mb-4">🎉</div>
                         <h3 className="text-2xl font-bold text-[var(--text)] mb-2">
                             Analysis Complete!
@@ -894,13 +965,13 @@ export default function RunAnalysis() {
                         <div className="flex gap-3 justify-center">
                             <button
                                 onClick={() => setShowCompletionModal(false)}
-                                className="px-4 py-2 border border-[var(--surface-light)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--surface-light)] transition-colors"
+                                className="btn btn-secondary"
                             >
                                 Stay Here
                             </button>
                             <button
                                 onClick={() => navigate(`/?brand_id=${selectedBrandId}`)}
-                                className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium rounded-lg hover:opacity-90 transition-all"
+                                className="btn btn-primary"
                             >
                                 View Dashboard →
                             </button>
@@ -911,8 +982,8 @@ export default function RunAnalysis() {
 
             {/* Delete Confirmation Modal */}
             {deleteModalPrompt && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-red-500/30 max-w-md mx-4">
+                <div className="modal-overlay">
+                    <div className="modal-content modal-content-danger">
                         <div className="flex items-center gap-3 mb-4">
                             <span className="text-3xl">⚠️</span>
                             <h3 className="text-xl font-bold text-[var(--text)]">Delete Question?</h3>
@@ -924,7 +995,7 @@ export default function RunAnalysis() {
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => setDeleteModalPrompt(null)}
-                                className="px-4 py-2 border border-[var(--surface-light)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--surface-light)] transition-colors"
+                                className="btn btn-secondary"
                             >
                                 Cancel
                             </button>
@@ -938,7 +1009,7 @@ export default function RunAnalysis() {
                                         console.error('Failed to delete:', err);
                                     }
                                 }}
-                                className="px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors"
+                                className="btn btn-danger"
                             >
                                 🗑️ Delete
                             </button>

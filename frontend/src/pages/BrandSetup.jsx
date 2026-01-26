@@ -100,7 +100,7 @@ export default function BrandSetup() {
                 <div className="h-10 w-48 bg-[var(--surface)] rounded animate-pulse"></div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {[1, 2].map(i => (
-                        <div key={i} className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)] h-48 animate-pulse"></div>
+                        <div key={i} className="card h-48 animate-pulse"></div>
                     ))}
                 </div>
             </div>
@@ -121,7 +121,7 @@ export default function BrandSetup() {
                     )}
                     <button
                         onClick={() => setShowForm(!showForm)}
-                        className="px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg font-medium transition-colors duration-200 flex items-center gap-2"
+                        className="btn btn-primary"
                     >
                         <span>+</span>
                         <span>Add Brand</span>
@@ -131,58 +131,50 @@ export default function BrandSetup() {
 
             {/* Add Brand Form */}
             {showForm && (
-                <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)]">
+                <div className="card">
                     <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Add New Brand</h3>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">
-                                    Brand Name *
-                                </label>
+                                <label className="label">Brand Name *</label>
                                 <input
                                     type="text"
                                     required
                                     value={newBrand.name}
                                     onChange={(e) => setNewBrand({ ...newBrand, name: e.target.value })}
-                                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition-colors"
+                                    className="input"
                                     placeholder="e.g., Acme Corp"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">
-                                    Industry / Category *
-                                </label>
+                                <label className="label">Industry / Category *</label>
                                 <input
                                     type="text"
                                     required
                                     value={newBrand.industry}
                                     onChange={(e) => setNewBrand({ ...newBrand, industry: e.target.value })}
-                                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition-colors"
+                                    className="input"
                                     placeholder="e.g., Technology, SaaS"
                                 />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">
-                                Brand Aliases (comma-separated)
-                            </label>
+                            <label className="label">Brand Aliases (comma-separated)</label>
                             <input
                                 type="text"
                                 value={newBrand.aliases}
                                 onChange={(e) => setNewBrand({ ...newBrand, aliases: e.target.value })}
-                                className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition-colors"
+                                className="input"
                                 placeholder="e.g., Acme, ACME Inc"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">
-                                Competitors (comma-separated)
-                            </label>
+                            <label className="label">Competitors (comma-separated)</label>
                             <input
                                 type="text"
                                 value={newBrand.competitors}
                                 onChange={(e) => setNewBrand({ ...newBrand, competitors: e.target.value })}
-                                className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition-colors"
+                                className="input"
                                 placeholder="e.g., CompetitorA, CompetitorB"
                             />
                         </div>
@@ -190,14 +182,14 @@ export default function BrandSetup() {
                             <button
                                 type="submit"
                                 disabled={saving}
-                                className="px-6 py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50"
+                                className="btn btn-primary"
                             >
                                 {saving ? 'Saving...' : 'Save Brand'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setShowForm(false)}
-                                className="px-6 py-2 bg-[var(--surface-light)] hover:bg-[var(--surface)] text-[var(--text)] rounded-lg font-medium transition-colors duration-200"
+                                className="btn btn-secondary"
                             >
                                 Cancel
                             </button>
@@ -211,12 +203,12 @@ export default function BrandSetup() {
                 {brands.map((brand) => (
                     <div
                         key={brand.id}
-                        className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--surface-light)] hover:border-[var(--primary)] transition-all duration-300"
+                        className="card card-hover"
                     >
                         <div className="flex items-start justify-between mb-4">
                             <div>
                                 <h3 className="text-xl font-bold text-[var(--text)]">{brand.name}</h3>
-                                <span className="inline-block px-3 py-1 bg-[var(--primary)]/20 text-[var(--primary)] rounded-full text-sm mt-2">
+                                <span className="badge badge-primary mt-2">
                                     {brand.industry}
                                 </span>
                             </div>
@@ -248,7 +240,7 @@ export default function BrandSetup() {
                                 {(brand.aliases || []).map((alias, i) => (
                                     <span
                                         key={alias.id || i}
-                                        className="px-3 py-1 bg-[var(--surface-light)] text-[var(--text)] rounded-lg text-sm"
+                                        className="badge badge-surface"
                                     >
                                         {alias.alias || alias}
                                     </span>
@@ -266,7 +258,7 @@ export default function BrandSetup() {
                                 {(brand.competitors || []).map((comp, i) => (
                                     <span
                                         key={comp.id || i}
-                                        className="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-sm"
+                                        className="badge badge-amber"
                                     >
                                         {comp.name || comp}
                                     </span>
@@ -288,7 +280,7 @@ export default function BrandSetup() {
                     <p className="text-[var(--text-muted)] mb-6">Add your first brand to start tracking AI visibility</p>
                     <button
                         onClick={() => setShowForm(true)}
-                        className="px-6 py-3 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-lg font-medium transition-colors duration-200"
+                        className="btn btn-primary btn-primary-lg"
                     >
                         Add Your First Brand
                     </button>
@@ -297,36 +289,36 @@ export default function BrandSetup() {
 
             {/* Edit Brand Modal */}
             {editingBrand && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-[var(--primary)]/30 max-w-md w-full mx-4">
+                <div className="modal-overlay">
+                    <div className="modal-content modal-content-primary">
                         <div className="flex items-center gap-3 mb-4">
                             <span className="text-2xl">✏️</span>
                             <h3 className="text-xl font-bold text-[var(--text)]">Edit Brand</h3>
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Brand Name</label>
+                                <label className="label">Brand Name</label>
                                 <input
                                     type="text"
                                     value={editForm.name}
                                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)]"
+                                    className="input"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Industry</label>
+                                <label className="label">Industry</label>
                                 <input
                                     type="text"
                                     value={editForm.industry}
                                     onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
-                                    className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--surface-light)] rounded-lg text-[var(--text)] focus:outline-none focus:border-[var(--primary)]"
+                                    className="input"
                                 />
                             </div>
                         </div>
                         <div className="flex gap-3 justify-end mt-6">
                             <button
                                 onClick={() => setEditingBrand(null)}
-                                className="px-4 py-2 border border-[var(--surface-light)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--surface-light)] transition-colors"
+                                className="btn btn-secondary"
                             >
                                 Cancel
                             </button>
@@ -347,7 +339,7 @@ export default function BrandSetup() {
                                         setEditingBrand(null)
                                     }
                                 }}
-                                className="px-4 py-2 bg-[var(--primary)] text-white font-medium rounded-lg hover:bg-[var(--primary-dark)] transition-colors"
+                                className="btn btn-primary"
                             >
                                 Save Changes
                             </button>
@@ -358,19 +350,19 @@ export default function BrandSetup() {
 
             {/* Delete Confirmation Modal */}
             {deleteModalBrand && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-                    <div className="bg-[var(--surface)] rounded-2xl p-6 border border-red-500/30 max-w-md mx-4">
+                <div className="modal-overlay">
+                    <div className="modal-content modal-content-danger">
                         <div className="flex items-center gap-3 mb-4">
                             <span className="text-3xl">⚠️</span>
                             <h3 className="text-xl font-bold text-[var(--text)]">Delete Brand?</h3>
                         </div>
                         <p className="text-[var(--text-muted)] mb-2">Are you sure you want to delete this brand?</p>
                         <p className="text-lg text-[var(--text)] font-semibold mb-2">"{deleteModalBrand.name}"</p>
-                        <p className="text-sm text-red-400 mb-6">⚠️ This will also delete all analysis results for this brand.</p>
+                        <p className="text-sm text-[var(--error)] mb-6">⚠️ This will also delete all analysis results for this brand.</p>
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => setDeleteModalBrand(null)}
-                                className="px-4 py-2 border border-[var(--surface-light)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--surface-light)] transition-colors"
+                                className="btn btn-secondary"
                             >
                                 Cancel
                             </button>
@@ -379,7 +371,7 @@ export default function BrandSetup() {
                                     await deleteBrand(deleteModalBrand.id)
                                     setDeleteModalBrand(null)
                                 }}
-                                className="px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors"
+                                className="btn btn-danger"
                             >
                                 🗑️ Delete
                             </button>

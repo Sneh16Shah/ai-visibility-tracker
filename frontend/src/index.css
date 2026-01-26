@@ -1,16 +1,6 @@
 @import "tailwindcss";
-
-/* Custom CSS Variables for theming */
-:root {
-  --primary: #6366f1;
-  --primary-dark: #4f46e5;
-  --secondary: #10b981;
-  --background: #0f172a;
-  --surface: #1e293b;
-  --surface-light: #334155;
-  --text: #f1f5f9;
-  --text-muted: #94a3b8;
-}
+@import "./styles/tokens.css";
+@import "./styles/components.css";
 
 /* Base styles */
 body {
