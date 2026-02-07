@@ -51,6 +51,9 @@ func main() {
 	// Initialize AI analysis service with rate limiting
 	services.InitAnalysisService(cfg)
 
+	// Initialize Compare Models service (OpenRouter multi-model comparison)
+	services.InitCompareService(cfg)
+
 	// Initialize router
 	router := gin.Default()
 

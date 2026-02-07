@@ -69,14 +69,16 @@ type AIResponse struct {
 
 // Mention represents a detected mention in an AI response
 type Mention struct {
-	ID             int       `json:"id"`
-	AIResponseID   int       `json:"ai_response_id"`
-	EntityName     string    `json:"entity_name"`
-	EntityType     string    `json:"entity_type"` // "brand" or "competitor"
-	Sentiment      string    `json:"sentiment"`   // "positive", "neutral", "negative"
-	ContextSnippet string    `json:"context_snippet"`
-	Position       int       `json:"position"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID               int       `json:"id"`
+	AIResponseID     int       `json:"ai_response_id"`
+	EntityName       string    `json:"entity_name"`
+	EntityType       string    `json:"entity_type"` // "brand" or "competitor"
+	Sentiment        string    `json:"sentiment"`   // "positive", "neutral", "negative"
+	ContextSnippet   string    `json:"context_snippet"`
+	Position         int       `json:"position"`
+	IsRecommendation bool      `json:"is_recommendation"` // True if explicitly recommended
+	PositionRank     int       `json:"position_rank"`     // 1=first, 2=second, 3+=later
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 // MetricSnapshot represents aggregated metrics at a point in time
@@ -84,13 +86,27 @@ type MetricSnapshot struct {
 	ID              int       `json:"id"`
 	BrandID         int       `json:"brand_id"`
 	VisibilityScore float64   `json:"visibility_score"`
-	CitationShare   float64   `json:"citation_share"`
+	CitationShare   float64   `json:"citation_share"` // Now called "Response Share" in UI
 	MentionCount    int       `json:"mention_count"`
 	PositiveCount   int       `json:"positive_count"`
 	NeutralCount    int       `json:"neutral_count"`
 	NegativeCount   int       `json:"negative_count"`
 	SnapshotDate    time.Time `json:"snapshot_date"`
 	CreatedAt       time.Time `json:"created_at"`
+
+	// Composite score components (0.0 - 1.0)
+	NormalizedMentionRate  float64 `json:"normalized_mention_rate"`  // 40% weight
+	WeightedPositionScore  float64 `json:"weighted_position_score"`  // 25% weight
+	RecommendationRate     float64 `json:"recommendation_rate"`      // 20% weight
+	RelativeSentimentIndex float64 `json:"relative_sentiment_index"` // 15% weight
+
+	// Confidence tracking
+	ConfidenceScore float64 `json:"confidence_score"`
+	ConfidenceLevel string  `json:"confidence_level"` // "high", "medium", "low"
+
+	// Metadata
+	ResponseCount        int     `json:"response_count"`
+	CategoryAvgSentiment float64 `json:"category_avg_sentiment"`
 }
 
 // ============================================
@@ -142,6 +158,20 @@ type DashboardData struct {
 	CitationBreakdown []CitationBreakdown `json:"citation_breakdown"`
 	CompetitorData    []CompetitorMetrics `json:"competitor_data"`
 	ModelVisibility   []ModelVisibility   `json:"model_visibility"`
+
+	// Composite score components (0-1)
+	NormalizedMentionRate  float64 `json:"normalized_mention_rate"`
+	WeightedPositionScore  float64 `json:"weighted_position_score"`
+	RecommendationRate     float64 `json:"recommendation_rate"`
+	RelativeSentimentIndex float64 `json:"relative_sentiment_index"`
+
+	// Confidence
+	ConfidenceScore float64 `json:"confidence_score"`
+	ConfidenceLevel string  `json:"confidence_level"`
+
+	// Metadata
+	ResponseCount        int     `json:"response_count"`
+	CategoryAvgSentiment float64 `json:"category_avg_sentiment"`
 }
 
 // CitationBreakdown represents citation share by entity

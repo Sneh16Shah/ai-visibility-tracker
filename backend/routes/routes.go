@@ -67,6 +67,13 @@ func Setup(router *gin.Engine) {
 			analysis.GET("/results/:id", controllers.GetAnalysisResult)
 		}
 
+		// Compare Models routes (multi-model comparison via OpenRouter)
+		compare := api.Group("/compare")
+		{
+			compare.GET("/models", controllers.GetCompareModels)
+			compare.POST("/run", controllers.RunCompareModels)
+		}
+
 		// Metrics routes
 		metrics := api.Group("/metrics")
 		{
@@ -78,6 +85,12 @@ func Setup(router *gin.Engine) {
 		export := api.Group("/export")
 		{
 			export.GET("/csv", controllers.ExportCSV)
+		}
+
+		// Insights routes (AI-powered)
+		insights := api.Group("/insights")
+		{
+			insights.GET("/competitor", controllers.GetCompetitorInsights)
 		}
 	}
 }

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -560,6 +561,58 @@ func GetAnalysisResult(c *gin.Context) {
 }
 
 // ============================================
+// Compare Models Controllers
+// ============================================
+
+// GetCompareModels returns the list of available models for comparison
+func GetCompareModels(c *gin.Context) {
+	svc := services.GetCompareService()
+	if svc == nil || !svc.IsAvailable() {
+		c.JSON(http.StatusOK, gin.H{
+			"available": false,
+			"models":    []interface{}{},
+			"message":   "Compare Models requires OPENROUTER_API_KEY to be configured",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"available": true,
+		"models":    svc.GetAvailableModels(),
+	})
+}
+
+// RunCompareModels runs multi-model comparison via OpenRouter
+func RunCompareModels(c *gin.Context) {
+	var req services.CompareModelsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	svc := services.GetCompareService()
+	if svc == nil || !svc.IsAvailable() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "Compare Models service not available",
+			"message": "Please configure OPENROUTER_API_KEY",
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+	result, err := svc.RunComparison(ctx, req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Comparison failed",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// ============================================
 // Metrics Controllers
 // ============================================
 
@@ -591,26 +644,19 @@ func GetDashboardData(c *gin.Context) {
 		brandID = 1 // Default for demo
 	}
 
-	metricRepo := db.NewMetricRepository()
+	log.Printf("📊 GetDashboardData: Fetching data for brand %d", brandID)
 
-	// Get latest metrics
-	latest, err := metricRepo.GetLatestByBrandID(brandID)
+	// Use the full metrics calculator to get all dashboard data including model visibility
+	metricsCalc := services.NewMetricsCalculator()
+	dashboardData, err := metricsCalc.GetDashboardMetrics(brandID)
 	if err != nil {
-		// Return demo data if no metrics exist
+		log.Printf("📊 GetDashboardData: Error getting metrics: %v", err)
 		c.JSON(http.StatusOK, getDemoData())
 		return
 	}
 
-	// Get trends
-	trends, _ := metricRepo.GetTrendsByBrandID(brandID, 7)
-
-	c.JSON(http.StatusOK, models.DashboardData{
-		VisibilityScore: latest.VisibilityScore,
-		CitationShare:   latest.CitationShare,
-		TotalMentions:   latest.MentionCount,
-		SentimentScore:  calculateSentimentScore(latest),
-		Trends:          trends,
-	})
+	log.Printf("📊 GetDashboardData: Returning data with %d model visibility entries", len(dashboardData.ModelVisibility))
+	c.JSON(http.StatusOK, dashboardData)
 }
 
 // Helper function to calculate sentiment score
@@ -693,4 +739,27 @@ func ExportCSV(c *gin.Context) {
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	c.String(http.StatusOK, csvContent.String())
+}
+
+// GetCompetitorInsights returns AI-powered competitor analysis
+func GetCompetitorInsights(c *gin.Context) {
+	brandID, _ := strconv.Atoi(c.Query("brand_id"))
+	if brandID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "brand_id is required"})
+		return
+	}
+
+	log.Printf("🔍 GetCompetitorInsights: Starting analysis for brand %d", brandID)
+
+	// Create insights service and generate insights
+	insightsService := services.NewInsightsService()
+	result, err := insightsService.GenerateCompetitorInsights(c.Request.Context(), brandID)
+	if err != nil {
+		log.Printf("🔍 GetCompetitorInsights: Error - %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Printf("🔍 GetCompetitorInsights: Completed for brand %d, success=%v", brandID, result.Success)
+	c.JSON(http.StatusOK, result)
 }

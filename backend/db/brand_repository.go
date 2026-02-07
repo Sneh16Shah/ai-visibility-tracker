@@ -61,10 +61,14 @@ func (r *BrandRepository) Create(userID int, req models.CreateBrandRequest) (*mo
 // GetByID retrieves a brand by ID with aliases and competitors
 func (r *BrandRepository) GetByID(id int) (*models.Brand, error) {
 	brand := &models.Brand{}
+	var competitorInsights sql.NullString
 	err := r.db.QueryRow(
-		"SELECT id, user_id, name, industry, COALESCE(alert_threshold, 0), COALESCE(schedule_frequency, 'disabled'), created_at, updated_at FROM brands WHERE id = ?",
+		"SELECT id, user_id, name, industry, COALESCE(alert_threshold, 0), COALESCE(schedule_frequency, 'disabled'), COALESCE(competitor_insights, ''), created_at, updated_at FROM brands WHERE id = ?",
 		id,
-	).Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.AlertThreshold, &brand.ScheduleFrequency, &brand.CreatedAt, &brand.UpdatedAt)
+	).Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.AlertThreshold, &brand.ScheduleFrequency, &competitorInsights, &brand.CreatedAt, &brand.UpdatedAt)
+	if competitorInsights.Valid {
+		brand.CompetitorInsights = competitorInsights.String
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +109,7 @@ func (r *BrandRepository) GetByID(id int) (*models.Brand, error) {
 // GetAll retrieves all brands for a user
 func (r *BrandRepository) GetAll(userID int) ([]models.Brand, error) {
 	rows, err := r.db.Query(
-		"SELECT id, user_id, name, industry, COALESCE(alert_threshold, 0), COALESCE(schedule_frequency, 'disabled'), created_at, updated_at FROM brands WHERE user_id = ?",
+		"SELECT id, user_id, name, industry, COALESCE(alert_threshold, 0), COALESCE(schedule_frequency, 'disabled'), COALESCE(competitor_insights, ''), created_at, updated_at FROM brands WHERE user_id = ?",
 		userID,
 	)
 	if err != nil {
@@ -116,8 +120,12 @@ func (r *BrandRepository) GetAll(userID int) ([]models.Brand, error) {
 	var brands []models.Brand
 	for rows.Next() {
 		var brand models.Brand
-		if err := rows.Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.AlertThreshold, &brand.ScheduleFrequency, &brand.CreatedAt, &brand.UpdatedAt); err != nil {
+		var competitorInsights sql.NullString
+		if err := rows.Scan(&brand.ID, &brand.UserID, &brand.Name, &brand.Industry, &brand.AlertThreshold, &brand.ScheduleFrequency, &competitorInsights, &brand.CreatedAt, &brand.UpdatedAt); err != nil {
 			return nil, err
+		}
+		if competitorInsights.Valid {
+			brand.CompetitorInsights = competitorInsights.String
 		}
 
 		// Get aliases for this brand

@@ -142,6 +142,11 @@ export async function saveInsights(brandId, insights) {
     });
 }
 
+// Get AI-powered competitor insights from backend (uses Gemini)
+export async function getCompetitorInsights(brandId) {
+    return apiCall(`/insights/competitor?brand_id=${brandId}`);
+}
+
 // ============================================
 // Competitor APIs
 // ============================================
@@ -238,6 +243,27 @@ export async function getAnalysisResults(brandId) {
 
 export async function getAnalysisResult(id) {
     return apiCall(`/analysis/results/${id}`);
+}
+
+// ============================================
+// Compare Models APIs (OpenRouter multi-model)
+// ============================================
+
+// Get available models for comparison
+export async function getCompareModels() {
+    return apiCall('/compare/models');
+}
+
+// Run multi-model comparison
+export async function runCompareModels(brandId, promptIds = [], modelIds = []) {
+    return apiCall('/compare/run', {
+        method: 'POST',
+        body: JSON.stringify({
+            brand_id: brandId,
+            prompt_ids: promptIds,
+            model_ids: modelIds,
+        }),
+    });
 }
 
 // ============================================

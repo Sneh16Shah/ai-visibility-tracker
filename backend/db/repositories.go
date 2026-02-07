@@ -229,10 +229,10 @@ func NewMentionRepository() *MentionRepository {
 }
 
 // Create creates a new mention
-func (r *MentionRepository) Create(aiResponseID int, entityName, entityType, sentiment, contextSnippet string, position int) (*models.Mention, error) {
+func (r *MentionRepository) Create(aiResponseID int, entityName, entityType, sentiment, contextSnippet string, position int, isRecommendation bool, positionRank int) (*models.Mention, error) {
 	result, err := r.db.Exec(
-		"INSERT INTO mentions (ai_response_id, entity_name, entity_type, sentiment, context_snippet, position) VALUES (?, ?, ?, ?, ?, ?)",
-		aiResponseID, entityName, entityType, sentiment, contextSnippet, position,
+		"INSERT INTO mentions (ai_response_id, entity_name, entity_type, sentiment, context_snippet, position, is_recommendation, position_rank) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		aiResponseID, entityName, entityType, sentiment, contextSnippet, position, isRecommendation, positionRank,
 	)
 	if err != nil {
 		return nil, err
@@ -245,9 +245,9 @@ func (r *MentionRepository) Create(aiResponseID int, entityName, entityType, sen
 
 	mention := &models.Mention{}
 	err = r.db.QueryRow(
-		"SELECT id, ai_response_id, entity_name, entity_type, sentiment, context_snippet, position, created_at FROM mentions WHERE id = ?",
+		"SELECT id, ai_response_id, entity_name, entity_type, sentiment, context_snippet, position, COALESCE(is_recommendation, FALSE), COALESCE(position_rank, 0), created_at FROM mentions WHERE id = ?",
 		mentionID,
-	).Scan(&mention.ID, &mention.AIResponseID, &mention.EntityName, &mention.EntityType, &mention.Sentiment, &mention.ContextSnippet, &mention.Position, &mention.CreatedAt)
+	).Scan(&mention.ID, &mention.AIResponseID, &mention.EntityName, &mention.EntityType, &mention.Sentiment, &mention.ContextSnippet, &mention.Position, &mention.IsRecommendation, &mention.PositionRank, &mention.CreatedAt)
 
 	return mention, err
 }
@@ -255,7 +255,7 @@ func (r *MentionRepository) Create(aiResponseID int, entityName, entityType, sen
 // GetByResponseID gets all mentions for an AI response
 func (r *MentionRepository) GetByResponseID(aiResponseID int) ([]models.Mention, error) {
 	rows, err := r.db.Query(
-		"SELECT id, ai_response_id, entity_name, entity_type, sentiment, context_snippet, position, created_at FROM mentions WHERE ai_response_id = ?",
+		"SELECT id, ai_response_id, entity_name, entity_type, sentiment, context_snippet, position, COALESCE(is_recommendation, FALSE), COALESCE(position_rank, 0), created_at FROM mentions WHERE ai_response_id = ?",
 		aiResponseID,
 	)
 	if err != nil {
@@ -266,7 +266,7 @@ func (r *MentionRepository) GetByResponseID(aiResponseID int) ([]models.Mention,
 	var mentions []models.Mention
 	for rows.Next() {
 		var mention models.Mention
-		if err := rows.Scan(&mention.ID, &mention.AIResponseID, &mention.EntityName, &mention.EntityType, &mention.Sentiment, &mention.ContextSnippet, &mention.Position, &mention.CreatedAt); err != nil {
+		if err := rows.Scan(&mention.ID, &mention.AIResponseID, &mention.EntityName, &mention.EntityType, &mention.Sentiment, &mention.ContextSnippet, &mention.Position, &mention.IsRecommendation, &mention.PositionRank, &mention.CreatedAt); err != nil {
 			return nil, err
 		}
 		mentions = append(mentions, mention)
@@ -287,8 +287,16 @@ func NewMetricRepository() *MetricRepository {
 // Create creates a new metric snapshot
 func (r *MetricRepository) Create(snapshot *models.MetricSnapshot) (*models.MetricSnapshot, error) {
 	result, err := r.db.Exec(
-		"INSERT INTO metric_snapshots (brand_id, visibility_score, citation_share, mention_count, positive_count, neutral_count, negative_count, snapshot_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		snapshot.BrandID, snapshot.VisibilityScore, snapshot.CitationShare, snapshot.MentionCount, snapshot.PositiveCount, snapshot.NeutralCount, snapshot.NegativeCount, snapshot.SnapshotDate,
+		`INSERT INTO metric_snapshots (
+			brand_id, visibility_score, citation_share, mention_count, 
+			positive_count, neutral_count, negative_count, snapshot_date,
+			normalized_mention_rate, weighted_position_score, recommendation_rate, relative_sentiment_index,
+			confidence_score, confidence_level, response_count, category_avg_sentiment
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		snapshot.BrandID, snapshot.VisibilityScore, snapshot.CitationShare, snapshot.MentionCount,
+		snapshot.PositiveCount, snapshot.NeutralCount, snapshot.NegativeCount, snapshot.SnapshotDate,
+		snapshot.NormalizedMentionRate, snapshot.WeightedPositionScore, snapshot.RecommendationRate, snapshot.RelativeSentimentIndex,
+		snapshot.ConfidenceScore, snapshot.ConfidenceLevel, snapshot.ResponseCount, snapshot.CategoryAvgSentiment,
 	)
 	if err != nil {
 		return nil, err
@@ -315,17 +323,42 @@ func (r *MetricRepository) GetByID(id int) (*models.MetricSnapshot, error) {
 // GetLatestByBrandID retrieves the latest metric snapshot for a brand
 func (r *MetricRepository) GetLatestByBrandID(brandID int) (*models.MetricSnapshot, error) {
 	snapshot := &models.MetricSnapshot{}
+	var confidenceLevel sql.NullString
 	err := r.db.QueryRow(
-		"SELECT id, brand_id, visibility_score, citation_share, mention_count, positive_count, neutral_count, negative_count, snapshot_date, created_at FROM metric_snapshots WHERE brand_id = ? ORDER BY snapshot_date DESC LIMIT 1",
+		`SELECT id, brand_id, visibility_score, citation_share, mention_count, 
+			positive_count, neutral_count, negative_count, snapshot_date, created_at,
+			COALESCE(normalized_mention_rate, 0), COALESCE(weighted_position_score, 0), 
+			COALESCE(recommendation_rate, 0), COALESCE(relative_sentiment_index, 0),
+			COALESCE(confidence_score, 0), confidence_level, 
+			COALESCE(response_count, 0), COALESCE(category_avg_sentiment, 0)
+		FROM metric_snapshots WHERE brand_id = ? ORDER BY snapshot_date DESC LIMIT 1`,
 		brandID,
-	).Scan(&snapshot.ID, &snapshot.BrandID, &snapshot.VisibilityScore, &snapshot.CitationShare, &snapshot.MentionCount, &snapshot.PositiveCount, &snapshot.NeutralCount, &snapshot.NegativeCount, &snapshot.SnapshotDate, &snapshot.CreatedAt)
+	).Scan(&snapshot.ID, &snapshot.BrandID, &snapshot.VisibilityScore, &snapshot.CitationShare,
+		&snapshot.MentionCount, &snapshot.PositiveCount, &snapshot.NeutralCount, &snapshot.NegativeCount,
+		&snapshot.SnapshotDate, &snapshot.CreatedAt,
+		&snapshot.NormalizedMentionRate, &snapshot.WeightedPositionScore,
+		&snapshot.RecommendationRate, &snapshot.RelativeSentimentIndex,
+		&snapshot.ConfidenceScore, &confidenceLevel,
+		&snapshot.ResponseCount, &snapshot.CategoryAvgSentiment)
+
+	if confidenceLevel.Valid {
+		snapshot.ConfidenceLevel = confidenceLevel.String
+	} else {
+		snapshot.ConfidenceLevel = "medium"
+	}
 	return snapshot, err
 }
 
-// GetTrendsByBrandID retrieves metric trends for a brand (last 7 days)
+// GetTrendsByBrandID retrieves metric trends for a brand (last N snapshots)
 func (r *MetricRepository) GetTrendsByBrandID(brandID int, days int) ([]models.MetricSnapshot, error) {
 	rows, err := r.db.Query(
-		"SELECT id, brand_id, visibility_score, citation_share, mention_count, positive_count, neutral_count, negative_count, snapshot_date, created_at FROM metric_snapshots WHERE brand_id = ? ORDER BY snapshot_date DESC LIMIT ?",
+		`SELECT id, brand_id, visibility_score, citation_share, mention_count, 
+			positive_count, neutral_count, negative_count, snapshot_date, created_at,
+			COALESCE(normalized_mention_rate, 0), COALESCE(weighted_position_score, 0), 
+			COALESCE(recommendation_rate, 0), COALESCE(relative_sentiment_index, 0),
+			COALESCE(confidence_score, 0), confidence_level, 
+			COALESCE(response_count, 0), COALESCE(category_avg_sentiment, 0)
+		FROM metric_snapshots WHERE brand_id = ? ORDER BY snapshot_date DESC LIMIT ?`,
 		brandID, days,
 	)
 	if err != nil {
@@ -336,8 +369,20 @@ func (r *MetricRepository) GetTrendsByBrandID(brandID int, days int) ([]models.M
 	var snapshots []models.MetricSnapshot
 	for rows.Next() {
 		var snapshot models.MetricSnapshot
-		if err := rows.Scan(&snapshot.ID, &snapshot.BrandID, &snapshot.VisibilityScore, &snapshot.CitationShare, &snapshot.MentionCount, &snapshot.PositiveCount, &snapshot.NeutralCount, &snapshot.NegativeCount, &snapshot.SnapshotDate, &snapshot.CreatedAt); err != nil {
+		var confidenceLevel sql.NullString
+		if err := rows.Scan(&snapshot.ID, &snapshot.BrandID, &snapshot.VisibilityScore, &snapshot.CitationShare,
+			&snapshot.MentionCount, &snapshot.PositiveCount, &snapshot.NeutralCount, &snapshot.NegativeCount,
+			&snapshot.SnapshotDate, &snapshot.CreatedAt,
+			&snapshot.NormalizedMentionRate, &snapshot.WeightedPositionScore,
+			&snapshot.RecommendationRate, &snapshot.RelativeSentimentIndex,
+			&snapshot.ConfidenceScore, &confidenceLevel,
+			&snapshot.ResponseCount, &snapshot.CategoryAvgSentiment); err != nil {
 			return nil, err
+		}
+		if confidenceLevel.Valid {
+			snapshot.ConfidenceLevel = confidenceLevel.String
+		} else {
+			snapshot.ConfidenceLevel = "medium"
 		}
 		snapshots = append(snapshots, snapshot)
 	}

@@ -144,6 +144,14 @@ export default function Dashboard() {
         if (selectedBrand) {
             setAlertThreshold(selectedBrand.alert_threshold || 0)
             setScheduleFrequency(selectedBrand.schedule_frequency || 'disabled')
+
+            // Load saved competitor insights from brand if available
+            if (selectedBrand.competitor_insights) {
+                setCompetitorInsights(prev => ({
+                    ...prev,
+                    [selectedBrand.id]: selectedBrand.competitor_insights
+                }))
+            }
         }
     }, [selectedBrand])
 
@@ -177,6 +185,12 @@ export default function Dashboard() {
             try {
                 setLoading(true)
                 const data = await api.getDashboardData(selectedBrandId)
+
+                // Debug logging
+                console.log('📊 Dashboard API Response:', data)
+                console.log('📊 model_visibility:', data.model_visibility)
+                console.log('📊 total_mentions:', data.total_mentions)
+                console.log('📊 hasData check:', data.total_mentions && data.total_mentions > 0)
 
                 setDashboardData(data)
 
@@ -215,12 +229,15 @@ export default function Dashboard() {
                     }
 
                     // Set per-model visibility from API
+                    console.log('📊 Setting compareModelScores:', data.model_visibility)
                     if (data.model_visibility && data.model_visibility.length > 0) {
                         setCompareModelScores(data.model_visibility)
                     } else {
+                        console.log('📊 model_visibility is empty or undefined, setting to null')
                         setCompareModelScores(null)
                     }
                 } else {
+                    console.log('📊 No real data (hasData=false), setting compareModelScores to null')
                     setCompareModelScores(null)
                 }
 
@@ -355,9 +372,9 @@ export default function Dashboard() {
                             loading={loading}
                         />
                         <KPICard
-                            title="Citation Share"
+                            title="Response Share"
                             value={`${dashboardData?.citation_share?.toFixed(0) || '0'}%`}
-                            subtitle="of AI responses"
+                            subtitle="of AI responses mention brand"
                             icon="📈"
                             loading={loading}
                         />
@@ -377,6 +394,102 @@ export default function Dashboard() {
                         />
                     </div>
 
+                    {/* Score Breakdown Card - Shows how visibility score is calculated */}
+                    {dashboardData?.normalized_mention_rate !== undefined && (
+                        <div className="card card-accent-indigo mt-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">🧮</span>
+                                    <h3 className="text-lg font-semibold text-[var(--text)]">Score Breakdown</h3>
+                                </div>
+                                {dashboardData?.confidence_level && (
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${dashboardData.confidence_level === 'high' ? 'bg-green-500/20 text-green-400' :
+                                            dashboardData.confidence_level === 'low' ? 'bg-red-500/20 text-red-400' :
+                                                'bg-yellow-500/20 text-yellow-400'
+                                        }`}>
+                                        {dashboardData.confidence_level.toUpperCase()} Confidence
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-sm text-[var(--text-muted)] mb-4">How your visibility score of {dashboardData?.visibility_score?.toFixed(1)} is calculated:</p>
+
+                            <div className="space-y-3">
+                                {/* Mention Rate (40%) */}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-40 text-sm text-[var(--text)]">
+                                        <span className="font-medium">Mention Rate</span>
+                                        <span className="text-[var(--text-muted)] ml-1">(40%)</span>
+                                    </div>
+                                    <div className="flex-1 progress-track h-4">
+                                        <div
+                                            className="h-full rounded-full bg-indigo-500 transition-all duration-700"
+                                            style={{ width: `${(dashboardData?.normalized_mention_rate || 0) * 100}%` }}
+                                        />
+                                    </div>
+                                    <span className="w-12 text-sm font-mono text-[var(--text)] text-right">
+                                        {((dashboardData?.normalized_mention_rate || 0) * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+
+                                {/* Position Score (25%) */}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-40 text-sm text-[var(--text)]">
+                                        <span className="font-medium">Position Score</span>
+                                        <span className="text-[var(--text-muted)] ml-1">(25%)</span>
+                                    </div>
+                                    <div className="flex-1 progress-track h-4">
+                                        <div
+                                            className="h-full rounded-full bg-purple-500 transition-all duration-700"
+                                            style={{ width: `${(dashboardData?.weighted_position_score || 0) * 100}%` }}
+                                        />
+                                    </div>
+                                    <span className="w-12 text-sm font-mono text-[var(--text)] text-right">
+                                        {((dashboardData?.weighted_position_score || 0) * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+
+                                {/* Recommendation Rate (20%) */}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-40 text-sm text-[var(--text)]">
+                                        <span className="font-medium">Recommend Rate</span>
+                                        <span className="text-[var(--text-muted)] ml-1">(20%)</span>
+                                    </div>
+                                    <div className="flex-1 progress-track h-4">
+                                        <div
+                                            className="h-full rounded-full bg-emerald-500 transition-all duration-700"
+                                            style={{ width: `${(dashboardData?.recommendation_rate || 0) * 100}%` }}
+                                        />
+                                    </div>
+                                    <span className="w-12 text-sm font-mono text-[var(--text)] text-right">
+                                        {((dashboardData?.recommendation_rate || 0) * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+
+                                {/* Sentiment Index (15%) */}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-40 text-sm text-[var(--text)]">
+                                        <span className="font-medium">Sentiment</span>
+                                        <span className="text-[var(--text-muted)] ml-1">(15%)</span>
+                                    </div>
+                                    <div className="flex-1 progress-track h-4">
+                                        <div
+                                            className="h-full rounded-full bg-amber-500 transition-all duration-700"
+                                            style={{ width: `${(dashboardData?.relative_sentiment_index || 0.5) * 100}%` }}
+                                        />
+                                    </div>
+                                    <span className="w-12 text-sm font-mono text-[var(--text)] text-right">
+                                        {((dashboardData?.relative_sentiment_index || 0.5) * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t border-[var(--surface-light)] text-xs text-[var(--text-muted)]">
+                                Based on {dashboardData?.response_count || 0} AI responses analyzed
+                            </div>
+                        </div>
+                    )}
+
+
                     {/* 2-Column Layout: Main Content + Sidebar */}
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 lg:gap-5">
 
@@ -393,23 +506,23 @@ export default function Dashboard() {
                                     <div className="space-y-3">
                                         {compareModelScores.map((item) => (
                                             <div key={item.modelId} className="flex items-center gap-3">
-                                                <div className="w-32 flex items-center gap-2">
+                                                <div className="w-36 flex items-center gap-2 flex-shrink-0">
                                                     <div
-                                                        className="w-3 h-3 rounded-full"
+                                                        className="w-3 h-3 rounded-full flex-shrink-0"
                                                         style={{ backgroundColor: item.color }}
                                                     />
-                                                    <span className="text-sm text-[var(--text)]">{item.model}</span>
+                                                    <span className="text-sm text-[var(--text)] whitespace-nowrap truncate">{item.model}</span>
                                                 </div>
-                                                <div className="progress-track h-5">
+                                                <div className="flex-1 progress-track h-5">
                                                     <div
                                                         className="h-full rounded-full transition-all duration-700"
                                                         style={{
-                                                            width: `${item.score}%`,
+                                                            width: `${Math.min(item.score, 100)}%`,
                                                             backgroundColor: item.color
                                                         }}
                                                     />
                                                 </div>
-                                                <span className="w-12 text-sm font-mono text-[var(--text)] text-right">{item.score}</span>
+                                                <span className="w-16 text-base font-semibold font-mono text-[var(--text)] text-right">{item.score.toFixed(2)}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -425,43 +538,31 @@ export default function Dashboard() {
                                     </div>
                                     <button
                                         onClick={async () => {
-                                            if (!window.puter?.ai) {
-                                                alert('Puter.js not loaded');
-                                                return;
-                                            }
                                             const brand = brands.find(b => b.id === selectedBrandId);
                                             if (!brand?.competitors?.length) {
                                                 alert('No competitors configured for this brand');
                                                 return;
                                             }
                                             setAnalyzingDeepDive(true);
-                                            const competitors = brand.competitors.map(c => c.name).join(', ');
                                             try {
-                                                const insights = await window.puter.ai.chat(
-                                                    `Analyze why competitors (${competitors}) might rank better than "${brand.name}" in AI assistant responses. 
+                                                // Call backend API which uses Gemini
+                                                const response = await api.getCompetitorInsights(selectedBrandId);
 
-Format your response with these sections:
-## Why Competitors Rank Higher
-- List 3-4 key reasons with specific examples
+                                                if (response.success) {
+                                                    setCompetitorInsights(prev => ({ ...prev, [selectedBrandId]: response.insights }));
 
-## Actionable Recommendations for ${brand.name}
-- List 5 specific, actionable steps to improve AI visibility
-- Include SEO, content strategy, structured data, and brand authority tips
-
-Keep each point concise (1-2 sentences). Industry: ${brand.industry || 'Technology'}`,
-                                                    { model: 'gpt-5.2' }
-                                                );
-                                                const result = typeof insights === 'string' ? insights : insights.message?.content || JSON.stringify(insights);
-                                                setCompetitorInsights(prev => ({ ...prev, [selectedBrandId]: result }));
-
-                                                // Save to database
-                                                try {
-                                                    await api.saveInsights(selectedBrandId, result);
-                                                } catch (saveErr) {
-                                                    console.log('Could not save insights to DB:', saveErr);
+                                                    // Save to database
+                                                    try {
+                                                        await api.saveInsights(selectedBrandId, response.insights);
+                                                    } catch (saveErr) {
+                                                        console.log('Could not save insights to DB:', saveErr);
+                                                    }
+                                                } else {
+                                                    alert(response.error || 'Failed to analyze competitors');
                                                 }
                                             } catch (err) {
                                                 console.error('Deep dive failed:', err);
+                                                alert('Analysis failed. Please ensure GOOGLE_API_KEY is configured.');
                                             } finally {
                                                 setAnalyzingDeepDive(false);
                                             }
@@ -485,35 +586,37 @@ Keep each point concise (1-2 sentences). Industry: ${brand.industry || 'Technolo
                                     </div>
                                 ) : competitorInsights[selectedBrandId] ? (
                                     <div className="relative">
-                                        {/* Expand/Collapse Toggle */}
-                                        <button
-                                            onClick={() => setInsightsExpanded(!insightsExpanded)}
-                                            className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-[var(--surface)] border border-[var(--surface-light)] hover:bg-[var(--surface-light)] transition-colors text-xs"
-                                            title={insightsExpanded ? 'Collapse' : 'Expand'}
-                                        >
-                                            {insightsExpanded ? '🔽 Collapse' : '🔼 Expand'}
-                                        </button>
+                                        {/* Expand/Collapse Toggle - moved to header for better UX */}
+                                        <div className="flex justify-end mb-2">
+                                            <button
+                                                onClick={() => setInsightsExpanded(!insightsExpanded)}
+                                                className="px-2 py-1 rounded-lg bg-[var(--surface)] border border-[var(--surface-light)] hover:bg-[var(--surface-light)] transition-colors text-xs"
+                                                title={insightsExpanded ? 'Collapse' : 'Expand'}
+                                            >
+                                                {insightsExpanded ? '🔽 Collapse' : '🔼 Expand'}
+                                            </button>
+                                        </div>
                                         <div className={`p-4 rounded-xl bg-[var(--background)] border border-[var(--surface-light)] text-sm text-[var(--text)] space-y-3 overflow-y-auto transition-all ${insightsExpanded ? 'max-h-[600px]' : 'max-h-52'}`}>
                                             {competitorInsights[selectedBrandId].split('\n').map((line, i) => {
+                                                // Helper to render bold text from **text**
+                                                const renderBold = (text) => {
+                                                    const parts = text.split(/\*\*(.*?)\*\*/g);
+                                                    return parts.map((part, idx) =>
+                                                        idx % 2 === 1 ? <strong key={idx}>{part}</strong> : part
+                                                    );
+                                                };
+
                                                 if (line.startsWith('## ')) {
                                                     return <h4 key={i} className="font-bold text-base text-[var(--primary)] mt-3 first:mt-0">{line.replace('## ', '')}</h4>;
-                                                } else if (line.startsWith('- **') || line.startsWith('* **')) {
-                                                    const parts = line.replace(/^[-*]\s*/, '').split('**');
-                                                    return (
-                                                        <div key={i} className="flex gap-2 items-start pl-2">
-                                                            <span className="text-[var(--primary)]">•</span>
-                                                            <span><strong>{parts[1]}</strong>{parts[2] || ''}</span>
-                                                        </div>
-                                                    );
                                                 } else if (line.startsWith('- ') || line.startsWith('* ')) {
                                                     return (
                                                         <div key={i} className="flex gap-2 items-start pl-2">
                                                             <span className="text-[var(--primary)]">•</span>
-                                                            <span>{line.replace(/^[-*]\s*/, '')}</span>
+                                                            <span>{renderBold(line.replace(/^[-*]\s*/, ''))}</span>
                                                         </div>
                                                     );
                                                 } else if (line.trim()) {
-                                                    return <p key={i} className="text-[var(--text-muted)]">{line}</p>;
+                                                    return <p key={i} className="text-[var(--text-muted)]">{renderBold(line)}</p>;
                                                 }
                                                 return null;
                                             })}

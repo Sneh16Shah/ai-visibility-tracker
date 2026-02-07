@@ -19,11 +19,13 @@ func NewMentionDetector() *MentionDetector {
 
 // DetectedMention represents a detected mention before storage
 type DetectedMention struct {
-	EntityName     string
-	EntityType     string // "brand" or "competitor"
-	Sentiment      string // "positive", "neutral", "negative"
-	ContextSnippet string
-	Position       int
+	EntityName       string
+	EntityType       string // "brand" or "competitor"
+	Sentiment        string // "positive", "neutral", "negative"
+	ContextSnippet   string
+	Position         int
+	IsRecommendation bool // True if explicitly recommended
+	PositionRank     int  // 1=first, 2=second, 3+=later (within response)
 }
 
 // DetectMentions finds all brand and competitor mentions in AI response text
@@ -49,15 +51,97 @@ func (d *MentionDetector) DetectMentions(responseText string, brand *models.Bran
 		mentions = append(mentions, compMentions...)
 	}
 
-	// Analyze sentiment for each mention
+	// Sort mentions by position to assign position ranks
+	sortMentionsByPosition(mentions)
+
+	// Calculate position ranks per entity type
+	brandRank := 0
 	for i := range mentions {
+		if mentions[i].EntityType == "brand" {
+			brandRank++
+			mentions[i].PositionRank = brandRank
+		}
+
+		// Analyze sentiment for each mention
 		mentions[i].Sentiment = d.analyzeSentiment(mentions[i].ContextSnippet)
+
+		// Check if this mention is an explicit recommendation
+		mentions[i].IsRecommendation = d.isRecommendation(lowerText, mentions[i].EntityName, mentions[i].Position)
 	}
 
 	return mentions
 }
 
-// findEntityMentions finds all occurrences of an entity in the text
+// sortMentionsByPosition sorts mentions by their position in the text
+func sortMentionsByPosition(mentions []DetectedMention) {
+	for i := 0; i < len(mentions)-1; i++ {
+		for j := i + 1; j < len(mentions); j++ {
+			if mentions[j].Position < mentions[i].Position {
+				mentions[i], mentions[j] = mentions[j], mentions[i]
+			}
+		}
+	}
+}
+
+// Recommendation patterns - phrases that indicate explicit endorsement
+var recommendationPatterns = []string{
+	"i recommend",
+	"i'd recommend",
+	"we recommend",
+	"i strongly recommend",
+	"highly recommend",
+	"my recommendation is",
+	"is the best choice",
+	"is the best option",
+	"is my top pick",
+	"is my top choice",
+	"you should use",
+	"you should go with",
+	"go with",
+	"i suggest",
+	"i'd suggest",
+	"the best option is",
+	"the best choice is",
+	"top pick",
+	"first choice",
+	"stands out as",
+	"is ideal for",
+	"is perfect for",
+}
+
+// isRecommendation checks if a mention is explicitly recommended
+func (d *MentionDetector) isRecommendation(lowerText, entityName string, entityPosition int) bool {
+	lowerEntity := strings.ToLower(entityName)
+
+	for _, pattern := range recommendationPatterns {
+		patternPos := strings.Index(lowerText, pattern)
+		if patternPos == -1 {
+			continue
+		}
+
+		// Check if entity name is within 150 characters of the recommendation phrase
+		// This accounts for phrases like "For your use case, I recommend X because..."
+		distance := abs(patternPos - entityPosition)
+		if distance < 150 {
+			// Additional check: entity should appear after the pattern or very close before
+			// e.g., "I recommend Salesforce" or "Salesforce is my recommendation"
+			entityPos := strings.Index(lowerText, lowerEntity)
+			if entityPos >= patternPos-50 { // Entity can be up to 50 chars before pattern
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// abs returns absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
 func (d *MentionDetector) findEntityMentions(originalText, lowerText, entityName, entityType string) []DetectedMention {
 	var mentions []DetectedMention
 
@@ -224,6 +308,8 @@ func (d *MentionDetector) StoreMentions(aiResponseID int, mentions []DetectedMen
 			m.Sentiment,
 			m.ContextSnippet,
 			m.Position,
+			m.IsRecommendation,
+			m.PositionRank,
 		)
 		if err != nil {
 			return storedMentions, err

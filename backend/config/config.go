@@ -6,33 +6,35 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Port        string
-	Environment string
-	DBHost      string
-	DBPort      string
-	DBUser      string
-	DBPassword  string
-	DBName      string
-	AIProvider  string
-	OpenAIKey   string
-	GeminiKey   string
-	GroqKey     string
+	Port          string
+	Environment   string
+	DBHost        string
+	DBPort        string
+	DBUser        string
+	DBPassword    string
+	DBName        string
+	AIProvider    string
+	OpenAIKey     string
+	GeminiKey     string
+	GroqKey       string
+	OpenRouterKey string
 }
 
 // Load reads configuration from environment variables
 func Load() *Config {
 	return &Config{
-		Port:        getEnv("PORT", "8080"),
-		Environment: getEnv("ENVIRONMENT", "development"),
-		DBHost:      getEnv("DB_HOST", "localhost"),
-		DBPort:      getEnv("DB_PORT", "3306"),
-		DBUser:      getEnv("DB_USER", "root"),
-		DBPassword:  getEnv("DB_PASSWORD", ""),
-		DBName:      getEnv("DB_NAME", "ai_visibility_tracker"),
-		AIProvider:  getEnv("AI_PROVIDER", "gemini"),
-		OpenAIKey:   getEnv("OPENAI_API_KEY", ""),
-		GeminiKey:   getEnv("GEMINI_API_KEY", ""),
-		GroqKey:     getEnv("GROQ_API_KEY", ""),
+		Port:          getEnv("PORT", "8080"),
+		Environment:   getEnv("ENVIRONMENT", "development"),
+		DBHost:        getEnv("DB_HOST", "localhost"),
+		DBPort:        getEnv("DB_PORT", "3306"),
+		DBUser:        getEnv("DB_USER", "root"),
+		DBPassword:    getEnv("DB_PASSWORD", ""),
+		DBName:        getEnv("DB_NAME", "ai_visibility_tracker"),
+		AIProvider:    getEnv("AI_PROVIDER", "gemini"),
+		OpenAIKey:     getEnv("OPENAI_API_KEY", ""),
+		GeminiKey:     getEnv("GEMINI_API_KEY", ""),
+		GroqKey:       getEnv("GROQ_API_KEY", ""),
+		OpenRouterKey: getEnv("OPENROUTER_API_KEY", ""),
 	}
 }
 

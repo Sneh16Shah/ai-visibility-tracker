@@ -48,11 +48,19 @@ func InitAnalysisService(cfg *config.Config) *AnalysisService {
 			provider = ai.NewGroqProvider(cfg.GroqKey)
 			log.Println("🤖 Using Groq (fast inference) as AI provider")
 		}
+	case "openrouter":
+		if cfg.OpenRouterKey != "" {
+			provider = ai.NewOpenRouterProvider(cfg.OpenRouterKey)
+			log.Println("🤖 Using OpenRouter as AI provider")
+		}
 	}
 
-	// Fallback: try Groq, then Gemini, then OpenAI if no provider set
+	// Fallback: try OpenRouter, then Groq, then Gemini, then OpenAI if no provider set
 	if provider == nil {
-		if cfg.GroqKey != "" {
+		if cfg.OpenRouterKey != "" {
+			provider = ai.NewOpenRouterProvider(cfg.OpenRouterKey)
+			log.Println("🤖 Using OpenRouter as AI provider (auto-detected)")
+		} else if cfg.GroqKey != "" {
 			provider = ai.NewGroqProvider(cfg.GroqKey)
 			log.Println("🤖 Using Groq as AI provider (auto-detected)")
 		} else if cfg.GeminiKey != "" {
@@ -62,7 +70,7 @@ func InitAnalysisService(cfg *config.Config) *AnalysisService {
 			provider = ai.NewOpenAIProvider(cfg.OpenAIKey)
 			log.Println("🤖 Using OpenAI as AI provider (auto-detected)")
 		} else {
-			log.Println("⚠️ No AI provider configured (set GROQ_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY)")
+			log.Println("⚠️ No AI provider configured (set OPENROUTER_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY)")
 		}
 	}
 

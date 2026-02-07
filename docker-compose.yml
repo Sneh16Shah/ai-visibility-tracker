@@ -36,6 +36,7 @@ services:
       # API keys loaded from .env file (never commit these!)
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
     ports:
       - "8080:8080"

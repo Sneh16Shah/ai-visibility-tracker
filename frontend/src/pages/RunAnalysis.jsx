@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import * as api from '../api/client'
-import { AI_MODELS, isPuterAvailable, queryMultipleModels, extractMentions, calculateResponseScore } from '../utils/puter'
+import { AI_MODELS } from '../utils/models'
 
 // Default prompt templates (used when API is unavailable)
 const defaultPromptTemplates = [
@@ -42,9 +42,15 @@ export default function RunAnalysis() {
     const [brands, setBrands] = useState([])
     const [selectedBrandId, setSelectedBrandId] = useState(null)
 
-    // Compare Mode (Multi-AI) - DEFAULT OFF to avoid Puter credit issues
+    // Compare Mode (Multi-AI) - Uses OpenRouter backend
     const [compareMode, setCompareMode] = useState(false)
-    const [selectedModels, setSelectedModels] = useState(['gpt-5', 'claude-opus-4-1', 'gemini-2.5-pro', 'llama-4-maverick'])
+    const [selectedModels, setSelectedModels] = useState([
+        'google/gemma-3-27b-it:free',
+        'meta-llama/llama-3.3-70b-instruct:free',
+        'qwen/qwen3-coder:free',
+        'tngtech/deepseek-r1t2-chimera:free',
+        'groq'
+    ])
     const [compareResults, setCompareResults] = useState([])
 
     // Expand/collapse state for results
@@ -182,14 +188,10 @@ export default function RunAnalysis() {
         return brands.find(b => b.id === selectedBrandId)
     }
 
-    // Run Compare Mode analysis (multi-model via Puter.js)
+    // Run Compare Mode analysis (multi-model via OpenRouter backend)
     const runCompareAnalysis = useCallback(async () => {
         if (selectedModels.length === 0) {
             setError('Please select at least one AI model to compare')
-            return
-        }
-        if (!isPuterAvailable()) {
-            setError('Puter.js not available. Please refresh the page.')
             return
         }
 
@@ -207,68 +209,40 @@ export default function RunAnalysis() {
         setError(null)
 
         try {
-            // Get selected prompts
-            const selectedPrompts = templates.filter(t => t.selected)
-            if (selectedPrompts.length === 0) {
+            // Get selected prompt IDs
+            const selectedPromptIds = templates.filter(t => t.selected).map(t => t.id)
+            if (selectedPromptIds.length === 0) {
                 throw new Error('Please select at least one prompt')
             }
 
-            const allModelResults = []
-            const totalQueries = selectedModels.length * selectedPrompts.length
-            let completedQueries = 0
+            setProgress(20)
 
-            // For each prompt, query all selected models
-            for (const prompt of selectedPrompts) {
-                // Build actual prompt with brand context
-                const actualPrompt = prompt.template
-                    .replace(/{brand}/gi, brand.name)
-                    .replace(/{category}/gi, brand.industry || 'software')
-                    .replace(/{competitor}/gi, brand.competitors?.[0]?.name || 'competitors')
+            // Call backend API for multi-model comparison
+            const result = await api.runCompareModels(selectedBrandId, selectedPromptIds, selectedModels)
 
-                // Query all models in parallel
-                const results = await queryMultipleModels(actualPrompt, selectedModels)
+            setProgress(80)
 
-                for (const result of results) {
-                    if (result.success) {
-                        // Extract mentions
-                        const mentions = extractMentions(
-                            result.response,
-                            brand.name,
-                            brand.aliases?.map(a => a.alias) || [],
-                            brand.competitors || []
-                        )
-
-                        // Calculate score for this response
-                        const score = calculateResponseScore(mentions, brand.name)
-
-                        const modelInfo = AI_MODELS.find(m => m.id === result.model)
-                        allModelResults.push({
-                            id: `${result.model}-${prompt.id}-${Date.now()}`,
-                            model: modelInfo?.name || result.model,
-                            modelId: result.model,
-                            provider: modelInfo?.provider || 'Unknown',
-                            color: modelInfo?.color || '#888',
-                            prompt: prompt.template,
-                            actualPrompt,
-                            response: result.response,
-                            mentions,
-                            score,
-                            timestamp: result.timestamp
-                        })
-                    } else {
-                        allModelResults.push({
-                            id: `${result.model}-${prompt.id}-${Date.now()}`,
-                            model: result.model,
-                            modelId: result.model,
-                            error: result.error,
-                            prompt: prompt.template,
-                            score: 0
-                        })
-                    }
-                    completedQueries++
-                    setProgress(Math.round((completedQueries / totalQueries) * 100))
-                }
+            if (!result.success && result.results?.length === 0) {
+                throw new Error(result.message || 'Comparison failed')
             }
+
+            // Transform backend results to frontend format
+            const allModelResults = result.results.map(r => {
+                const modelInfo = AI_MODELS.find(m => m.id === r.model_id)
+                return {
+                    id: `${r.model_id}-${Date.now()}-${Math.random()}`,
+                    model: r.model_name || modelInfo?.name || r.model_id,
+                    modelId: r.model_id,
+                    provider: r.provider || modelInfo?.provider || 'Unknown',
+                    color: r.color || modelInfo?.color || '#888888',
+                    prompt: r.prompt_text,
+                    response: r.response,
+                    mentions: r.mentions || [],
+                    score: r.score || 0,
+                    error: r.error,
+                    timestamp: r.timestamp
+                }
+            })
 
             setCompareResults(allModelResults)
             setProgress(100)
@@ -277,18 +251,21 @@ export default function RunAnalysis() {
             // Save per-model scores to localStorage for Dashboard
             const modelScores = {}
             allModelResults.forEach(r => {
+                if (r.error) return // Skip failed results
                 if (!modelScores[r.model]) {
                     modelScores[r.model] = { total: 0, count: 0, color: r.color, modelId: r.modelId }
                 }
                 modelScores[r.model].total += r.score
                 modelScores[r.model].count++
             })
-            const scoreSummary = Object.entries(modelScores).map(([model, data]) => ({
-                model,
-                modelId: data.modelId,
-                color: data.color,
-                score: Math.round(data.total / data.count)
-            }))
+            const scoreSummary = Object.entries(modelScores)
+                .filter(([, data]) => data.count > 0)
+                .map(([model, data]) => ({
+                    model,
+                    modelId: data.modelId,
+                    color: data.color,
+                    score: Math.round(data.total / data.count)
+                }))
             // Store with brand ID so each brand has its own compare data
             const stored = JSON.parse(localStorage.getItem('compareModelScores') || '{}')
             stored[brand.id] = { scores: scoreSummary, timestamp: new Date().toISOString() }
@@ -296,12 +273,16 @@ export default function RunAnalysis() {
 
         } catch (err) {
             console.error('Compare analysis failed:', err)
-            setError(err.message || 'Comparison failed')
+            if (err.status === 503) {
+                setError('Compare Models requires OPENROUTER_API_KEY. Please configure it in your .env file.')
+            } else {
+                setError(err.message || 'Comparison failed')
+            }
         } finally {
             setIsRunning(false)
             isRunningRef.current = false
         }
-    }, [selectedModels, templates, brands, selectedBrandId])
+    }, [selectedModels, templates, selectedBrandId])
 
     // Debounced run analysis function
     const runAnalysis = useCallback(async () => {
@@ -567,9 +548,6 @@ export default function RunAnalysis() {
                     {selectedModels.length === 0 && (
                         <p className="text-[var(--warning)] text-sm mt-3">⚠️ Select at least one model to run comparison</p>
                     )}
-                    {!isPuterAvailable() && (
-                        <p className="text-[var(--warning)] text-sm mt-3">⚠️ Puter.js not loaded. Please refresh the page.</p>
-                    )}
                 </div>
             )}
 
@@ -833,12 +811,32 @@ export default function RunAnalysis() {
                                                     // Full formatted response
                                                     <div className="space-y-2">
                                                         {result.response?.split('\n').map((line, li) => {
-                                                            if (line.startsWith('###') || line.startsWith('**')) {
-                                                                return <p key={li} className="font-bold text-[var(--primary)]">{line.replace(/[#*]/g, '').trim()}</p>;
-                                                            } else if (line.startsWith('- ') || line.startsWith('* ')) {
-                                                                return <p key={li} className="pl-3">• {line.replace(/^[-*]\s*/, '')}</p>;
-                                                            } else if (line.trim()) {
-                                                                return <p key={li}>{line}</p>;
+                                                            // Strip all ** and * markers
+                                                            const cleanText = (text) => text.replace(/\*\*/g, '').replace(/\*/g, '');
+
+                                                            // Skip separator lines
+                                                            if (line.trim() === '---' || line.trim() === '***') {
+                                                                return <hr key={li} className="border-[var(--surface-light)] my-3" />;
+                                                            }
+                                                            // Markdown headings (### Title)
+                                                            if (line.startsWith('###')) {
+                                                                return <p key={li} className="font-bold text-base text-[var(--primary)] mt-3">{cleanText(line.replace(/^###\s*/, ''))}</p>;
+                                                            }
+                                                            // Bold headings (lines starting with **)
+                                                            if (line.startsWith('**')) {
+                                                                return <p key={li} className="font-bold text-[var(--primary)] mt-4">{cleanText(line)}</p>;
+                                                            }
+                                                            // Regular numbered headings (1. Title:)
+                                                            if (/^\d+\.\s/.test(line)) {
+                                                                return <p key={li} className="font-semibold text-[var(--primary)] mt-3">{cleanText(line)}</p>;
+                                                            }
+                                                            // Bullet points (check for - or single * but not **)
+                                                            if (line.startsWith('- ') || (line.startsWith('* ') && !line.startsWith('**'))) {
+                                                                return <p key={li} className="pl-4 text-[var(--text)]">• {cleanText(line.replace(/^[-*]\s*/, ''))}</p>;
+                                                            }
+                                                            // Regular text
+                                                            if (line.trim()) {
+                                                                return <p key={li} className="text-[var(--text)]">{cleanText(line)}</p>;
                                                             }
                                                             return null;
                                                         })}
@@ -909,12 +907,32 @@ export default function RunAnalysis() {
                                                 // Full formatted response
                                                 <div className="space-y-2">
                                                     {result.response.split('\n').map((line, li) => {
-                                                        if (line.startsWith('###') || line.startsWith('**')) {
-                                                            return <p key={li} className="font-bold text-[var(--primary)]">{line.replace(/[#*]/g, '').trim()}</p>;
-                                                        } else if (line.startsWith('- ') || line.startsWith('* ')) {
-                                                            return <p key={li} className="pl-3">• {line.replace(/^[-*]\s*/, '')}</p>;
-                                                        } else if (line.trim()) {
-                                                            return <p key={li}>{line}</p>;
+                                                        // Strip all ** and * markers
+                                                        const cleanText = (text) => text.replace(/\*\*/g, '').replace(/\*/g, '');
+
+                                                        // Skip separator lines
+                                                        if (line.trim() === '---' || line.trim() === '***') {
+                                                            return <hr key={li} className="border-[var(--surface-light)] my-3" />;
+                                                        }
+                                                        // Markdown headings (### Title)
+                                                        if (line.startsWith('###')) {
+                                                            return <p key={li} className="font-bold text-base text-[var(--primary)] mt-3">{cleanText(line.replace(/^###\s*/, ''))}</p>;
+                                                        }
+                                                        // Bold headings (lines starting with **)
+                                                        if (line.startsWith('**')) {
+                                                            return <p key={li} className="font-bold text-[var(--primary)] mt-4">{cleanText(line)}</p>;
+                                                        }
+                                                        // Regular numbered headings (1. Title:)
+                                                        if (/^\d+\.\s/.test(line)) {
+                                                            return <p key={li} className="font-semibold text-[var(--primary)] mt-3">{cleanText(line)}</p>;
+                                                        }
+                                                        // Bullet points (check for - or single * but not **)
+                                                        if (line.startsWith('- ') || (line.startsWith('* ') && !line.startsWith('**'))) {
+                                                            return <p key={li} className="pl-4 text-[var(--text)]">• {cleanText(line.replace(/^[-*]\s*/, ''))}</p>;
+                                                        }
+                                                        // Regular text
+                                                        if (line.trim()) {
+                                                            return <p key={li} className="text-[var(--text)]">{cleanText(line)}</p>;
                                                         }
                                                         return null;
                                                     })}
